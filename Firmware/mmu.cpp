@@ -42,6 +42,8 @@ uint8_t mmuE0BackupCurrents[2] = {0, 0};
 void shutdownE0(bool shutdown = true);
 #define TXTimeout   60           //60ms
 #define OCTO_NOTIFICATIONS_ON
+void mmu_unload_synced(void);
+
 
 int8_t mmu_state = 0;
 
@@ -82,9 +84,9 @@ void mmu_init(void)
    MMU States
    -1 >> -2 MMURX Start, respond with S1 (30s timeout to disabled state)
    -2 >> -3 MMURX ok, respond with S2
-   -3 >> -4 MMURX ok, respond with P0(READ FINDA) if MK3 and goto -4
-         -5           respond with M1(MODE STEALTH) if MK2.5 and goto -5
-   -4 >>  1 MMURX ok, mmu_ready
+   -3 >> -4 MMURX ok, respond with S3
+   -4 >> -5 MMURX ok, respond with P0(READ FINDA) if MK3 and goto -4
+         -6           respond with M1(MODE STEALTH) if MK2.5 and goto -5
    -5 >>  1 MMURX ok, mmu_ready
     1 >>  3 MMU CMD Request from MK3
     2 >>  1 MMURX ok, Finda State
@@ -152,39 +154,46 @@ void mmu_loop(void)
       bool version_valid = mmu_check_version();
       if (!version_valid) mmu_show_warning();
       else puts_P(PSTR("MMU version valid"));
+      uart2_txPayload((unsigned char*)"S3-");
+      mmu_state = -4;
+
+    } else if (mmu_state == -4) {
+      tmp_extruder = tData3;
+      mmu_extruder = tmp_extruder;
+      printf_P(PSTR("MMU => MK3 'Active Extruder:%d'\n"), tmp_extruder + 1);
       if ((PRINTER_TYPE == PRINTER_MK3) || (PRINTER_TYPE == PRINTER_MK3_SNMM)) {
 #ifdef MMU_DEBUG
         puts_P(PSTR("MK3 => MMU 'P0'"));
 #endif //MMU_DEBUG
         uart2_txPayload((unsigned char*)"P0-");
-        mmu_state = -4;
+        mmu_state = -5;
       } else {
 #ifdef MMU_DEBUG
         puts_P(PSTR("MK3 => MMU 'M1'"));
 #endif //MMU_DEBUG
         uart2_txPayload((unsigned char*)"M1-");
-        mmu_state = -5;
+        mmu_state = -6;
       }
 
-    } else if (mmu_state == -4) {
+    } else if (mmu_state == -5) {
       if ((tData1 == 'P') && (tData2 == 'K')) {
         mmu_finda = tData3;
 #ifdef MMU_DEBUG
         printf_P(PSTR("MMU => MK3 'PK%d'\n"), mmu_finda);
 #endif //MMU_DEBUG
         puts_P(PSTR("MMU - ENABLED"));
-        fsensor_enable();
         mmu_enabled = true;
         mmu_state = 1;
+        fsensor_enable();
       }
 
-    } else if (mmu_state == -5) {
+    } else if (mmu_state == -6) {
       if ((tData1 == 'O') && (tData2 == 'K')) {
 #ifdef MMU_DEBUG
         puts_P(PSTR("MMU => MK3 'P0'"));
 #endif //MMU_DEBUG
         uart2_txPayload((unsigned char*)"P0-");
-        mmu_state = -4;
+        mmu_state = -5;
       }
 
     } else if (mmu_state == 2) {
@@ -210,6 +219,9 @@ void mmu_loop(void)
     } else if (mmu_state == 3) {
       if ((tData1 == 'F') && (tData2 == 'S')) {
         printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 Sensor'\n"));
+        //pendingACK       = false;
+        //txRESEND         = false;
+        //startRxFlag      = false;
         if (!fsensor_enabled) fsensor_enable();
         if (!fsensor_enabled) {
           lcd_clear();
@@ -223,16 +235,32 @@ void mmu_loop(void)
         mmu_last_response = millis(); // Update last response counter
         mmuFSensorLoading = true;
         mmu_state = 1;
-      } else if ((tData1 == 'O') && (tData2 == 'K')) {
+      } else if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == 'U')) {
+        printf_P(PSTR("MMU => MK3 'oku'\n"));
+        mmu_last_response = millis(); // Update last response counter
+        mmu_unload_synced();
+      } else if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == '-')) {
         if (mmuFSensorLoading == true) mmuFSensorLoading = false;
         printf_P(PSTR("MMU => MK3 'ok'\n"));
         mmu_last_response = millis(); // Update last response counter
         mmu_ready = true;
         mmu_state = 1;
-      }
+      } else if ((tData1 == 'O') && (tData2 == 'K') && (tData3 < 5)) {
+        if (mmuFSensorLoading == true) mmuFSensorLoading = false;
+        printf_P(PSTR("MMU => MK3 'OK Active Extruder:%d'\n"), tmp_extruder + 1);
+        tmp_extruder = tData3;
+        mmu_extruder = tmp_extruder;
+        mmu_last_response = millis(); // Update last response counter
+        mmu_ready = true;
+        mmu_state = 1;
+      } 
+
     } else if (mmu_state == 1) {
       if ((tData1 == 'F') && (tData2 == 'S')) {
         printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 Sensor'\n"));
+        //pendingACK       = false;
+        //txRESEND         = false;
+        //startRxFlag      = false;
         if (!fsensor_enabled) fsensor_enable();
         if (!fsensor_enabled) {
           lcd_clear();
@@ -245,8 +273,16 @@ void mmu_loop(void)
         fsensor_autoload_check_stop();
         mmu_last_response = millis(); // Update last response counter
         mmuFSensorLoading = true;
-        mmu_state = 1;
-      }
+        //mmu_state = 1;
+        return;
+        
+      } else if ((tData1 == 'O') && (tData2 == 'K') && (tData3 < 5)) {
+        printf_P(PSTR("MMU => MK3 'OK Active Extruder:%d'\n"), tmp_extruder + 1);
+        tmp_extruder = tData3;
+        mmu_extruder = tmp_extruder;
+        mmu_last_response = millis(); // Update last response counter
+      } 
+      
     } // End of mmu_state if statement
     return;
   } // End of ConfPayload Area
@@ -342,6 +378,17 @@ void mmu_command(uint8_t cmd)
   }
 	mmu_cmd = cmd;
 	mmu_ready = false;
+}
+
+void mmu_unload_synced(void)
+{
+  st_synchronize();
+  shutdownE0(false);
+  current_position[E_AXIS] -= 70;
+  float feedrate = 1393;
+  plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], feedrate / 60, active_extruder);
+  st_synchronize();
+  shutdownE0();
 }
 
 bool mmu_get_response(void)
@@ -799,7 +846,7 @@ static const E_step ramming_sequence[] PROGMEM =
     {-6.0,  600.0/60},
     {10.0,  700.0/60},
     {-10.0, 400.0/60},
-    {-50.0, 2000.0/60},
+    //{-50.0, 2000.0/60},
 };
 
 //! @brief Unload sequence to optimize shape of the tip of the unloaded filament
@@ -1127,7 +1174,9 @@ void lcd_mmu_load_to_nozzle(uint8_t filament_nr)
 {
   if (degHotend0() > EXTRUDE_MINTEMP)
   {
-  extr_unload();
+  //extr_unload();
+  filament_ramming();
+
 	tmp_extruder = filament_nr;
 	lcd_update_enable(false);
 	lcd_clear();

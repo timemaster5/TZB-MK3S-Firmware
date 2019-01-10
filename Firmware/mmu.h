@@ -42,7 +42,6 @@ extern int16_t mmu_buildnr;
 #define MMU_CMD_E3   0x53
 #define MMU_CMD_E4   0x54
 #define MMU_CMD_R0   0x60
-#define MMU_CMD_FS   0x81
 
 
 extern void mmu_init(void);
@@ -51,6 +50,8 @@ extern void mmu_loop(void);
 
 
 extern void mmu_reset(void);
+
+extern void adviseMMUFilamentSeenatExtruder(void);
 
 extern void mmu_set_filament_type(uint8_t extruder, uint8_t filament);
 

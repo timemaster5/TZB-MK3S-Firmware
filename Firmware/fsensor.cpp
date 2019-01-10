@@ -177,7 +177,6 @@ bool fsensor_enable(void)
     fsensor_enabled = pat9125 ? true : false;
     fsensor_watch_runout = true;
     fsensor_autoload_set(true);
-    fsensor_autoload_enabled = false;
     fsensor_oq_meassure = false;
     fsensor_err_cnt = 0;
     fsensor_dy_old = 0;

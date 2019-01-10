@@ -7480,23 +7480,23 @@ void manage_inactivity(bool ignore_stepper_queue/*=false*/) //default argument s
 		}
 	} else if (mmuFSensorLoading) {
     if (fsensor_check_autoload()) {
-      mmu_command(MMU_CMD_FS);
-      fsensor_autoload_check_stop();
-      fsensor_autoload_enabled = false;
+      adviseMMUFilamentSeenatExtruder();
     }
-  } else if ((mcode_in_progress != 600) && (!moves_planned() && !IS_SD_PRINTING &&
+  } else {
+    if ((mcode_in_progress != 600) && (!moves_planned() && !IS_SD_PRINTING &&
                 !is_usb_printing && (lcd_commands_type != LCD_COMMAND_V2_CAL) &&
                 !wizard_active) && mmuIdleFilamentTesting) {
-    if (fsensor_check_autoload()) {
-      lcd_clear();
-      lcd_set_cursor(6, 2);
-      lcd_puts_P(_T(MSG_ENDSTOP_HIT));
-      delay(500);
-      lcd_clear();
+      if (fsensor_check_autoload()) {
+        lcd_clear();
+        lcd_set_cursor(6, 2);
+        lcd_puts_P(_T(MSG_ENDSTOP_HIT));
+        delay(500);
+        lcd_clear();
+      }
+    } else if ((mcode_in_progress != 600) && (IS_SD_PRINTING || is_usb_printing) && mmu_ready){ //M600 not in progress
+      fsensor_autoload_check_stop();
+      fsensor_update();
     }
-  } else if ((mcode_in_progress != 600) && (IS_SD_PRINTING || is_usb_printing) && mmu_ready){ //M600 not in progress
-    fsensor_autoload_check_stop();
-    fsensor_update();
   }
 
 #endif //FILAMENT_SENSOR

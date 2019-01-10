@@ -7,8 +7,8 @@
 #define STR(x) STR_HELPER(x)
 
 // Firmware version
-#define FW_VERSION "5.0.5-TZB" // Based on PRUSA 3.5.1
-#define FW_COMMIT_NR   2371
+#define FW_VERSION "5.0.5-TZB77" // Based on PRUSA 3.5.1
+#define FW_COMMIT_NR   2390
 // FW_VERSION_UNKNOWN means this is an unofficial build.
 // The firmware should only be checked into github with this symbol.
 #define FW_DEV_VERSION FW_VERSION_UNKNOWN

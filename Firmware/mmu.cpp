@@ -41,7 +41,6 @@ int toolChanges = 0;
 uint8_t mmuE0BackupCurrents[2] = {0, 0};
 void shutdownE0(bool shutdown = true);
 #define TXTimeout   60           //60ms
-#define OCTO_NOTIFICATIONS_ON
 void mmu_unload_synced(void);
 
 

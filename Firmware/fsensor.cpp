@@ -175,6 +175,7 @@ bool fsensor_enable(void)
     else
       fsensor_not_responding = true;
     fsensor_enabled = pat9125 ? true : false;
+    fsensor_watch_runout = true;
     fsensor_autoload_set(true);
     fsensor_autoload_enabled = false;
     fsensor_oq_meassure = false;
@@ -292,19 +293,6 @@ bool fsensor_check_autoload(void)
 	if ((fsensor_autoload_c >= 12) && (fsensor_autoload_sum > 20))
 	{
 //		puts_P(_N("fsensor_check_autoload = true !!!\n"));
-    if (mmu_enabled) {
-      if (mmuFSensorLoading) {
-        mmu_command(MMU_CMD_FS);
-        fsensor_autoload_check_stop();
-        fsensor_autoload_enabled = false;
-      } else if (mmuIdleFilamentTesting) {
-        lcd_clear();
-        lcd_set_cursor(6, 2);
-        lcd_puts_P(_T(MSG_ENDSTOP_HIT));
-        delay(500);
-        lcd_clear();
-      }
-    }
 		return true;
 	}
 	return false;
@@ -386,7 +374,7 @@ bool fsensor_oq_result(void)
 
 ISR(FSENSOR_INT_PIN_VECT)
 {
-	if (mmu_enabled) return;
+	//if (mmu_enabled) return;
 	if (!((fsensor_int_pin_old ^ FSENSOR_INT_PIN_PIN_REG) & FSENSOR_INT_PIN_MASK)) return;
 	fsensor_int_pin_old = FSENSOR_INT_PIN_PIN_REG;
 	static bool _lock = false;
@@ -501,7 +489,7 @@ void fsensor_st_block_chunk(block_t* bl, int cnt)
 //! If there is still no plausible signal from filament sensor plans M600 (Filament change).
 void fsensor_update(void)
 {
-	if (fsensor_enabled && fsensor_watch_runout && (fsensor_err_cnt > FSENSOR_ERR_MAX))
+	if (fsensor_enabled && fsensor_watch_runout && (fsensor_err_cnt > FSENSOR_ERR_MAX) && !mmu_enabled)
 	{
         bool autoload_enabled_tmp = fsensor_autoload_enabled;
         fsensor_autoload_enabled = false;
@@ -551,6 +539,28 @@ void fsensor_update(void)
         fsensor_autoload_enabled = autoload_enabled_tmp;
 		fsensor_oq_meassure_enabled = oq_meassure_enabled_tmp;
 	}
+	else if (fsensor_enabled && fsensor_watch_runout && (fsensor_err_cnt > FSENSOR_ERR_MAX))
+  {
+    bool autoload_enabled_tmp = fsensor_autoload_enabled;
+    fsensor_autoload_enabled = false;
+    bool oq_meassure_enabled_tmp = fsensor_oq_meassure_enabled;
+    fsensor_oq_meassure_enabled = true;
+
+#ifdef OCTO_NOTIFICATIONS_ON
+    printf_P(PSTR("// action:jamDetected\n"));
+#endif // OCTO_NOTIFICATIONS_ON
+
+    fsensor_stop_and_save_print();
+
+    printf_P(PSTR("MMU Jam Detected - M600\n"));
+    eeprom_update_byte((uint8_t*)EEPROM_FERROR_COUNT, eeprom_read_byte((uint8_t*)EEPROM_FERROR_COUNT) + 1);
+    eeprom_update_word((uint16_t*)EEPROM_FERROR_COUNT_TOT, eeprom_read_word((uint16_t*)EEPROM_FERROR_COUNT_TOT) + 1);
+    enquecommand_front_P(PSTR("FSENSOR_RECOVER"));
+    enquecommand_front_P((PSTR("M600")));
+    fsensor_watch_runout = false;
+    fsensor_autoload_enabled = autoload_enabled_tmp;
+    fsensor_oq_meassure_enabled = oq_meassure_enabled_tmp;
+  }
 }
 
 void fsensor_setup_interrupt(void)

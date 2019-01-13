@@ -250,7 +250,9 @@ void fsensor_autoload_check_stop(void)
 bool fsensor_check_autoload(void)
 {
 	if (!fsensor_enabled) return false;
-	if (!fsensor_autoload_enabled) return false;
+	if (mmu_enabled) {
+    if (!fsensor_autoload_enabled) fsensor_autoload_enabled = true;
+	} else if (!fsensor_autoload_enabled) return false;
 	if (!fsensor_watch_autoload)
 	{
 		fsensor_autoload_check_start();

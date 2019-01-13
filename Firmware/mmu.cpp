@@ -35,7 +35,8 @@ bool mmu_ready = false;
 bool isMMUPrintPaused = false;
 bool mmuFSensorLoading = false;
 bool mmuIdleFilamentTesting = true;
-bool fsensorManualOverride = false;
+//bool fsensorManualOverride = false;
+bool mmu_jam_det_enabled = true;
 int lastLoadedFilament = -10;
 int toolChanges = 0;
 uint8_t mmuE0BackupCurrents[2] = {0, 0};
@@ -133,7 +134,10 @@ void mmu_loop(void)
         mmu_last_response = millis(); // Update last response counter
       } else if ((tData1 == 'Z') && (tData2 == 'Z') && (tData3 == 'Z')) { // Clear MK3 Messages
                      //********************
-        lcd_setstatus("                    "); // 20 Chars
+        lcd_setstatuspgm(_T(WELCOME_MSG));
+        lcd_return_to_status();
+        lcd_update_enable(true);
+        mmuIdleFilamentTesting = true;
         mmu_last_response = millis(); // Update last response counter
 
       } else if ((tData1 == 'Z') && (tData2 == 'L') && (tData3 == '1')) {  // MMU Loading Failed
@@ -170,21 +174,12 @@ void mmu_loop(void)
       } else if ((tData1 == 'X') && (tData2 == '1')) { // MMU Setup Menu
                      //********************
         lcd_setstatus("   MMU Setup Menu   "); // 20 Chars
+        mmuIdleFilamentTesting = false;
         mmu_last_response = millis(); // Update last response counter
 
       } else if ((tData1 == 'X') && (tData2 == '2')) { // MMU Adj Bowden Len
                      //********************
-        lcd_setstatus(" MMU Adj Bowden Len  "); // 20 Chars
-        mmu_last_response = millis(); // Update last response counter
-
-      } else if ((tData1 == 'X') && (tData2 == '3')) { // MMU Adj Bowden Len: Loaded Message
-                     //********************
-        lcd_setstatus("L:Extrude R:Retract "); // 20 Chars
-        mmu_last_response = millis(); // Update last response counter
-
-      } else if ((tData1 == 'X') && (tData2 == '4')) { // MMU Adj Bowden Len: Unloaded Message
-                     //********************
-        lcd_setstatus("M:Retry L:Save&Exit "); // 20 Chars
+        lcd_setstatus("MMU Adj BowLen/Bond "); // 20 Chars
         mmu_last_response = millis(); // Update last response counter
 
       } else if ((tData1 == 'X') && (tData2 == '5')) { // MMU Setup Menu: Unlock EEPROM
@@ -200,6 +195,41 @@ void mmu_loop(void)
       } else if ((tData1 == 'X') && (tData2 == '7')) { // MMU Setup Menu: Exit
                      //********************
         lcd_setstatus("Exit Setup Menu"); // 20 Chars
+        lcd_return_to_status();
+        lcd_update_enable(true);
+        mmu_last_response = millis(); // Update last response counter
+
+      } else if (tData1 == 'B') { // MMU Adj Fsensor to Bondtech Length
+                     //********************
+        lcd_update_enable(false);
+        lcd_clear();                       //********************
+        lcd_set_cursor(0, 0); lcd_puts_P(_i("L:  +20 (Extrude)   "));
+        lcd_set_cursor(0, 1); lcd_puts_P(_i("M:Unload Save & Exit"));
+        lcd_set_cursor(0, 2); lcd_puts_P(_i("R:  -20 (Retract)   "));
+        lcd_set_cursor(0, 3); lcd_puts_P(_i("Current Steps "));
+        lcd_set_cursor(14, 3); lcd_print((tData2 << 8) | (tData3));
+        mmu_last_response = millis(); // Update last response counter
+
+      } else if (tData1 == 'V') { // MMU Adj Bowden Len: Loaded Message
+                     //********************
+        lcd_update_enable(false);
+        lcd_clear();                       //********************
+        lcd_set_cursor(0, 0); lcd_puts_P(_i("L:  +30 (Extrude)   "));
+        lcd_set_cursor(0, 1); lcd_puts_P(_i("M:Unload(Save/Retry)"));
+        lcd_set_cursor(0, 2); lcd_puts_P(_i("R:  -30 (Retract)   "));
+        lcd_set_cursor(0, 3); lcd_puts_P(_i("Current Steps "));
+        lcd_set_cursor(14, 3); lcd_print((tData2 << 8) | (tData3));
+        mmu_last_response = millis(); // Update last response counter
+
+      } else if (tData1 == 'W') { // MMU Adj Bowden Len: Unloaded Message
+                     //********************
+        lcd_update_enable(false);
+        lcd_clear();                       //********************
+        lcd_set_cursor(0, 0); lcd_puts_P(_i("L:   Save & Exit    "));
+        lcd_set_cursor(0, 1); lcd_puts_P(_i("M:BowLen Load2Check "));
+        lcd_set_cursor(0, 2); lcd_puts_P(_i("R:Set BondTech Steps"));
+        lcd_set_cursor(0, 3); lcd_puts_P(_i("Current Steps "));
+        lcd_set_cursor(14, 3); lcd_print((tData2 << 8) | (tData3));
         mmu_last_response = millis(); // Update last response counter
 
       }
@@ -296,23 +326,10 @@ void mmu_loop(void)
         mmu_last_response = millis(); // Update last response counter
         mmu_state = 1;
       } else if (((mmu_last_response + 3) < millis()) && !mmuFSensorLoading)
-        mmu_state = 1;
+        mmu_state = 3;
 
     } else if (mmu_state == 3) {
-      if ((tData1 == 'F') && (tData2 == 'S')) {
-        printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 Sensor'\n"));
-        if (!fsensor_enabled) fsensor_enable();
-        if (!fsensor_enabled) {
-          lcd_clear();
-          lcd_set_cursor(4, 2);
-          lcd_puts_P(_T(MSG_FSENSOR_OFF));
-          delay(1000);
-          lcd_clear();
-        }
-        fsensor_autoload_check_stop();
-        mmu_last_response = millis(); // Update last response counter
-        mmuFSensorLoading = true;
-      } else if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == 'U')) {
+      if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == 'U')) {
         printf_P(PSTR("MMU => MK3 'oku'\n"));
         mmu_last_response = millis(); // Update last response counter
         mmu_unload_synced();
@@ -324,6 +341,24 @@ void mmu_loop(void)
       }
       
     } // End of mmu_state if statement
+    if (((mmu_state == 1) || (mmu_state == 3)) && ((tData1 == 'F') && (tData2 == 'S'))) {
+      printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 Sensor'\n"));
+      if (!fsensor_enabled) fsensor_enable();
+      if (!fsensor_enabled) {
+        lcd_clear();
+        lcd_set_cursor(4, 2);
+        lcd_puts_P(_T(MSG_FSENSOR_OFF));
+        delay(1000);
+        lcd_clear();
+      }
+      txRESEND         = false;
+      startRxFlag      = false;
+      pendingACK       = false;
+      fsensor_autoload_check_stop();
+      mmu_last_response = millis(); // Update last response counter
+      mmuFSensorLoading = true;
+    }
+
     return;
   } // End of ConfPayload Area
 
@@ -378,7 +413,7 @@ void mmu_loop(void)
       }
       mmu_cmd = 0;
     }
-    else if (((mmu_last_response + 300) < millis()) && !mmuFSensorLoading) //request every 300ms
+    else if (((mmu_last_response + 500) < millis()) && !mmuFSensorLoading) //request every 500ms
     {
       uart2_txPayload((unsigned char*)"P0-");
       mmu_state = 2;
@@ -399,8 +434,8 @@ void mmu_reset(void)
 
 void adviseMMUFilamentSeenatExtruder(void)
 {
-      printf_P(PSTR("MK3 => MMU 'Filament seen at extruder'\n"));
       uart2_txPayload((unsigned char*)"FS-");
+      printf_P(PSTR("MK3 => MMU 'Filament seen at extruder'\n"));
       mmuFSensorLoading = false;
       fsensor_autoload_check_stop();
 }
@@ -1215,7 +1250,6 @@ void lcd_mmu_load_to_nozzle(uint8_t filament_nr)
 {
   if (degHotend0() > EXTRUDE_MINTEMP)
   {
-  //extr_unload();
   filament_ramming();
 
 	tmp_extruder = filament_nr;
@@ -1258,9 +1292,10 @@ void mmu_eject_filament(uint8_t filament, bool recover)
 			    LcdUpdateDisabler disableLcdUpdate;
                 lcd_clear();
                 lcd_set_cursor(0, 1); lcd_puts_P(_i("Ejecting filament"));
-                current_position[E_AXIS] -= 80;
-                plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 2500 / 60, active_extruder);
-                st_synchronize();
+                //current_position[E_AXIS] -= 80;
+                //plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 2500 / 60, active_extruder);
+                //st_synchronize();
+                filament_ramming();
                 mmu_command(MMU_CMD_E0 + filament);
                 manage_response(false, false);
                 if (recover)

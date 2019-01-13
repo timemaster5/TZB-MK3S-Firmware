@@ -6,7 +6,7 @@
 extern bool mmu_enabled;
 extern bool mmuFSensorLoading;
 extern bool mmuIdleFilamentTesting;
-extern bool mmu_ready;
+extern bool mmu_jam_det_enabled;
 extern int8_t mmu_state;
 extern uint32_t mmu_last_request;
 #define OCTO_NOTIFICATIONS_ON

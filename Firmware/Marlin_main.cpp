@@ -6114,6 +6114,7 @@ Sigma_Exit:
       if (code_seen('B')) //backup current speed factor
       {
         saved_feedmultiply_mm = feedmultiply;
+        if (mmu_enabled) mmu_jam_det_enabled = false;
       }
       if(code_seen('S'))
       {		
@@ -6121,6 +6122,7 @@ Sigma_Exit:
       }
       if (code_seen('R')) { //restore previous feedmultiply
         feedmultiply = saved_feedmultiply_mm;
+        if (mmu_enabled) mmu_jam_det_enabled = true;
       }
     }
     break;
@@ -7487,13 +7489,20 @@ void manage_inactivity(bool ignore_stepper_queue/*=false*/) //default argument s
                 !is_usb_printing && (lcd_commands_type != LCD_COMMAND_V2_CAL) &&
                 !wizard_active) && mmuIdleFilamentTesting) {
       if (fsensor_check_autoload()) {
-        lcd_clear();
-        lcd_set_cursor(6, 2);
-        lcd_puts_P(_T(MSG_ENDSTOP_HIT));
-        delay(500);
-        lcd_clear();
+        fsensor_autoload_check_stop();
+        mmuIdleFilamentTesting = false;
+        lcd_update_enable(false);
+        lcd_clear();                       //********************
+        lcd_set_cursor(0, 0); lcd_puts_P(_i("      SUCCESS!!     "));
+        lcd_set_cursor(0, 1); lcd_puts_P(_i("  Detected Filament "));
+        lcd_set_cursor(0, 2); lcd_puts_P(_i("  with MK3 Filament "));
+        lcd_set_cursor(0, 3); lcd_puts_P(_i("       Sensor       "));
+        delay(1000);
+        lcd_return_to_status();
+        lcd_update_enable(true);
+        mmuIdleFilamentTesting = true;
       }
-    } else if ((mcode_in_progress != 600) && (IS_SD_PRINTING || is_usb_printing) && mmu_ready){ //M600 not in progress
+    } else if ((mcode_in_progress != 600) && (IS_SD_PRINTING || is_usb_printing) && mmu_jam_det_enabled){ //M600 not in progress
       fsensor_autoload_check_stop();
       fsensor_update();
     }

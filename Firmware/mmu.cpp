@@ -42,7 +42,8 @@ int toolChanges = 0;
 uint8_t mmuE0BackupCurrents[2] = {0, 0};
 void shutdownE0(bool shutdown = true);
 #define TXTimeout   60           //60ms
-void mmu_unload_synced(void);
+uint8_t unload_filament_type[3] = {0, 0, 0};
+void mmu_unload_synced(uint16_t _filament_type_speed);
 
 
 int8_t mmu_state = 0;
@@ -62,9 +63,6 @@ int16_t mmu_buildnr = -1;
 
 uint32_t mmu_last_request = 0;
 uint32_t mmu_last_response = 0;
-
-uint8_t mmu_last_cmd = 0;
-
 
 //initialize mmu2 unit - first part - should be done at begining of startup process
 void mmu_init(void)
@@ -329,10 +327,10 @@ void mmu_loop(void)
         mmu_state = 3;
 
     } else if (mmu_state == 3) {
-      if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == 'U')) {
+      if (tData1 == 'U') {
         printf_P(PSTR("MMU => MK3 'oku'\n"));
         mmu_last_response = millis(); // Update last response counter
-        mmu_unload_synced();
+        mmu_unload_synced((tData2 << 8) | (tData3));
       } else if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == '-')) {
         printf_P(PSTR("MMU => MK3 'ok'\n"));
         mmu_last_response = millis(); // Update last response counter
@@ -456,13 +454,12 @@ void mmu_command(uint8_t cmd)
 	mmu_ready = false;
 }
 
-void mmu_unload_synced(void)
+void mmu_unload_synced(uint16_t _filament_type_speed)
 {
   st_synchronize();
   shutdownE0(false);
   current_position[E_AXIS] -= 70;
-  float feedrate = 1393;
-  plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], feedrate / 60, active_extruder);
+  plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], _filament_type_speed, active_extruder);
   st_synchronize();
   shutdownE0();
 }

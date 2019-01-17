@@ -328,9 +328,9 @@ void mmu_loop(void)
 
     } else if (mmu_state == 3) {
       if (tData1 == 'U') {
-        printf_P(PSTR("MMU => MK3 'oku'\n"));
+	mmu_unload_synced((tData2 << 8) | (tData3));
+	printf_P(PSTR("MMU => MK3 Unload Feedrate: %d%d\n"), tData2, tData3);
         mmu_last_response = millis(); // Update last response counter
-        mmu_unload_synced((tData2 << 8) | (tData3));
       } else if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == '-')) {
         printf_P(PSTR("MMU => MK3 'ok'\n"));
         mmu_last_response = millis(); // Update last response counter

@@ -38,7 +38,7 @@ bool mmuIdleFilamentTesting = true;
 //bool fsensorManualOverride = false;
 bool mmu_jam_det_enabled = true;
 int lastLoadedFilament = -10;
-int toolChanges = 0;
+uint16_t toolChanges = 0;
 uint8_t mmuE0BackupCurrents[2] = {0, 0};
 void shutdownE0(bool shutdown = true);
 #define TXTimeout   60           //60ms
@@ -230,6 +230,11 @@ void mmu_loop(void)
         lcd_set_cursor(14, 3); lcd_print((tData2 << 8) | (tData3));
         mmu_last_response = millis(); // Update last response counter
 
+      } else if (tData1 == 'T') { // MMU Report ToolChange Count
+        toolChanges = ((tData2 << 8) | (tData3));
+        printf_P(PSTR("MMU => MK3 '@toolChange:%d'\n"), toolChanges);
+        mmu_last_response = millis(); // Update last response counter
+
       }
       
     }
@@ -328,8 +333,8 @@ void mmu_loop(void)
 
     } else if (mmu_state == 3) {
       if (tData1 == 'U') {
-	mmu_unload_synced((tData2 << 8) | (tData3));
-	printf_P(PSTR("MMU => MK3 Unload Feedrate: %d%d\n"), tData2, tData3);
+	      mmu_unload_synced((tData2 << 8) | (tData3));
+	      printf_P(PSTR("MMU => MK3 Unload Feedrate: %d%d\n"), tData2, tData3);
         mmu_last_response = millis(); // Update last response counter
 
       } else if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == '-')) {
@@ -368,8 +373,9 @@ void mmu_loop(void)
         filament = mmu_cmd - MMU_CMD_T0;
         mmuIdleFilamentTesting = false;
         unsigned char tempTxCMD[3] = {'T', (uint8_t)filament, BLK};
-        toolChanges++;
-        printf_P(PSTR("MK3 => MMU 'T%d @toolChange:%d'\n"), filament, toolChanges);
+        //toolChanges++;
+        //printf_P(PSTR("MK3 => MMU 'T%d @toolChange:%d'\n"), filament, toolChanges);
+        printf_P(PSTR("MK3 => MMU 'T%d'\n"), filament);
         uart2_txPayload(tempTxCMD);
         mmu_state = 3; // wait for response
 
@@ -392,7 +398,7 @@ void mmu_loop(void)
         printf_P(PSTR("MK3 => MMU 'U0'\n"));
         uart2_txPayload((unsigned char*)"U0-");
         mmuIdleFilamentTesting = true;
-        toolChanges = 0;
+        //toolChanges = 0;
         mmu_state = 3; // wait for response
 
       } else if ((mmu_cmd >= MMU_CMD_E0) && (mmu_cmd <= MMU_CMD_E4))
@@ -1290,9 +1296,6 @@ void mmu_eject_filament(uint8_t filament, bool recover)
 			    LcdUpdateDisabler disableLcdUpdate;
                 lcd_clear();
                 lcd_set_cursor(0, 1); lcd_puts_P(_i("Ejecting filament"));
-                //current_position[E_AXIS] -= 80;
-                //plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 2500 / 60, active_extruder);
-                //st_synchronize();
                 filament_ramming();
                 mmu_command(MMU_CMD_E0 + filament);
                 manage_response(false, false);

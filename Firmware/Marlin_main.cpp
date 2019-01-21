@@ -2973,8 +2973,7 @@ static void gcode_M600(bool automatic, float x_position, float y_position, float
     lcd_change_fil_state = 0;
 
     // Unload filament
-    if (mmu_enabled) extr_unload();	//unload just current filament for multimaterial printers (used also in M702)
-    else unload_filament(); //unload filament for single material (used also in M702)
+    if (!mmu_enabled) unload_filament(); //unload filament for single material (used also in M702)
     //finish moves
     st_synchronize();
 
@@ -3000,6 +2999,7 @@ static void gcode_M600(bool automatic, float x_position, float y_position, float
     {
         if (!automatic) {
             if (saved_printing) mmu_eject_filament(mmu_extruder, false); //if M600 was invoked by filament senzor (FINDA) eject filament so user can easily remove it
+            else extr_unload();
             mmu_M600_wait_and_beep();
             if (saved_printing) {
 

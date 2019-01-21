@@ -201,22 +201,22 @@ void mmu_loop(void)
                      //********************
         lcd_update_enable(false);
         lcd_clear();                       //********************
-        lcd_set_cursor(0, 0); lcd_puts_P(_i("L:  +20 (Extrude)   "));
+        lcd_set_cursor(0, 0); lcd_puts_P(_i("L:  +1mm (Extrude)  "));
         lcd_set_cursor(0, 1); lcd_puts_P(_i("M:Unload Save & Exit"));
-        lcd_set_cursor(0, 2); lcd_puts_P(_i("R:  -20 (Retract)   "));
-        lcd_set_cursor(0, 3); lcd_puts_P(_i("Current Steps "));
-        lcd_set_cursor(14, 3); lcd_print((tData2 << 8) | (tData3));
+        lcd_set_cursor(0, 2); lcd_puts_P(_i("R:  -1mm (Retract)  "));
+        lcd_set_cursor(0, 3); lcd_puts_P(_i("Current mm: "));
+        lcd_set_cursor(12, 3); lcd_print((tData2 << 8) | (tData3));
         mmu_last_response = millis(); // Update last response counter
 
       } else if (tData1 == 'V') { // MMU Adj Bowden Len: Loaded Message
                      //********************
         lcd_update_enable(false);
         lcd_clear();                       //********************
-        lcd_set_cursor(0, 0); lcd_puts_P(_i("L:  +30 (Extrude)   "));
+        lcd_set_cursor(0, 0); lcd_puts_P(_i("L: +2mm (Extrude)   "));
         lcd_set_cursor(0, 1); lcd_puts_P(_i("M:Unload(Save/Retry)"));
-        lcd_set_cursor(0, 2); lcd_puts_P(_i("R:  -30 (Retract)   "));
-        lcd_set_cursor(0, 3); lcd_puts_P(_i("Current Steps "));
-        lcd_set_cursor(14, 3); lcd_print((tData2 << 8) | (tData3));
+        lcd_set_cursor(0, 2); lcd_puts_P(_i("R: -2mm (Retract)   "));
+        lcd_set_cursor(0, 3); lcd_puts_P(_i("Current mm: "));
+        lcd_set_cursor(12, 3); lcd_print((tData2 << 8) | (tData3));
         mmu_last_response = millis(); // Update last response counter
 
       } else if (tData1 == 'W') { // MMU Adj Bowden Len: Unloaded Message
@@ -226,8 +226,8 @@ void mmu_loop(void)
         lcd_set_cursor(0, 0); lcd_puts_P(_i("L:   Save & Exit    "));
         lcd_set_cursor(0, 1); lcd_puts_P(_i("M:BowLen Load2Check "));
         lcd_set_cursor(0, 2); lcd_puts_P(_i("R:Set BondTech Steps"));
-        lcd_set_cursor(0, 3); lcd_puts_P(_i("Current Steps "));
-        lcd_set_cursor(14, 3); lcd_print((tData2 << 8) | (tData3));
+        lcd_set_cursor(0, 3); lcd_puts_P(_i("Current mm: "));
+        lcd_set_cursor(12, 3); lcd_print((tData2 << 8) | (tData3));
         mmu_last_response = millis(); // Update last response counter
 
       } else if (tData1 == 'T') { // MMU Report ToolChange Count
@@ -465,7 +465,7 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
 {
   st_synchronize();
   shutdownE0(false);
-  current_position[E_AXIS] -= 70;
+  current_position[E_AXIS] -= 100;
   plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], _filament_type_speed, active_extruder);
   st_synchronize();
   shutdownE0();
@@ -843,31 +843,27 @@ void display_loading()
 void extr_adj(int extruder) //loading filament for SNMM
 {
 #ifndef SNMM
-    uint8_t cmd = MMU_CMD_L0 + extruder;
-    if (cmd > MMU_CMD_L4)
-    {
-        printf_P(PSTR("Filament out of range %d \n"),extruder);
-        return;
-    }
-    mmu_command(cmd);
+  uint8_t cmd = MMU_CMD_L0 + extruder;
+  if (cmd > MMU_CMD_L4)
+  {
+      printf_P(PSTR("Filament out of range %d \n"),extruder);
+      return;
+  }
+  mmu_command(cmd);
 
 	//show which filament is currently loaded
+  lcd_setstatuspgm(_T(WELCOME_MSG));
+  lcd_return_to_status();
+  lcd_update_enable(true);
+  char msg[20];
+  sprintf_P(msg, PSTR("MMU Loading Ext:%d"), (extruder + 1));
+                     //********************
+  lcd_setstatus(msg); // 20 Chars
 
-	lcd_update_enable(false);
-	lcd_clear();
-	lcd_set_cursor(0, 1); lcd_puts_P(_T(MSG_LOADING_FILAMENT));
-	//if(strlen(_T(MSG_LOADING_FILAMENT))>18) lcd.setCursor(0, 1);
-	//else lcd.print(" ");
-	lcd_print(" ");
-	lcd_print(extruder + 1);
+  manage_response(false, false);
 
-	// get response
-	manage_response(false, false);
-
-	lcd_update_enable(true);
-
-
-	//lcd_return_to_status();
+  lcd_setstatuspgm(_T(WELCOME_MSG));
+  lcd_return_to_status();
 #else
 
 	bool correct;
@@ -955,32 +951,34 @@ void extr_unload()
 		st_synchronize();
 
 		//show which filament is currently unloaded
-		lcd_update_enable(false);
-		lcd_clear();
-		lcd_set_cursor(0, 1); lcd_puts_P(_T(MSG_UNLOADING_FILAMENT));
-		lcd_print(" ");
-		lcd_print(mmu_extruder + 1);
+    lcd_setstatuspgm(_T(WELCOME_MSG));
+    lcd_return_to_status();
+    lcd_update_enable(true);
+    char msg[20];
+    sprintf_P(msg, PSTR("MMU Unloading Fil:%d"), (mmu_extruder + 1));
+                       //********************
+    lcd_setstatus(msg); // 20 Chars    
 
 		filament_ramming();
 
 		mmu_command(MMU_CMD_U0);
 		// get response
 		manage_response(false, true);
-
-		lcd_update_enable(true);
+    lcd_setstatuspgm(_T(WELCOME_MSG));
+    lcd_return_to_status();
 #else //SNMM
 
-		lcd_clear();
-		lcd_display_message_fullscreen_P(PSTR(""));
-		max_feedrate[E_AXIS] = 50;
-		lcd_set_cursor(0, 0); lcd_puts_P(_T(MSG_UNLOADING_FILAMENT));
-		lcd_print(" ");
-		lcd_print(mmu_extruder + 1);
-		lcd_set_cursor(0, 2); lcd_puts_P(_T(MSG_PLEASE_WAIT));
-		if (current_position[Z_AXIS] < 15) {
-			current_position[Z_AXIS] += 15; //lifting in Z direction to make space for extrusion
-			plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 25, active_extruder);
-		}
+    lcd_clear();
+    lcd_display_message_fullscreen_P(PSTR(""));
+    max_feedrate[E_AXIS] = 50;
+    lcd_set_cursor(0, 0); lcd_puts_P(_T(MSG_UNLOADING_FILAMENT));
+    lcd_print(" ");
+    lcd_print(mmu_extruder + 1);
+    lcd_set_cursor(0, 2); lcd_puts_P(_T(MSG_PLEASE_WAIT));
+    if (current_position[Z_AXIS] < 15) {
+        current_position[Z_AXIS] += 15; //lifting in Z direction to make space for extrusion
+        plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 25, active_extruder);
+    }
 
 		current_position[E_AXIS] += 10; //extrusion
 		plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], 10, active_extruder);
@@ -1016,8 +1014,8 @@ void extr_unload()
 		//st_current_init();
 		if (SilentMode != SILENT_MODE_OFF) st_current_set(2, tmp_motor[2]); //set back to normal operation currents
 		else st_current_set(2, tmp_motor_loud[2]);
-		lcd_update_enable(true);
-		lcd_return_to_status();
+    lcd_update_enable(true);
+    lcd_return_to_status();
 		max_feedrate[E_AXIS] = 50;
 #endif //SNMM
 	}
@@ -1257,11 +1255,13 @@ void lcd_mmu_load_to_nozzle(uint8_t filament_nr)
   filament_ramming();
 
 	tmp_extruder = filament_nr;
-	lcd_update_enable(false);
-	lcd_clear();
-	lcd_set_cursor(0, 1); lcd_puts_P(_T(MSG_LOADING_FILAMENT));
-	lcd_print(" ");
-	lcd_print(tmp_extruder + 1);
+  lcd_setstatuspgm(_T(WELCOME_MSG));
+  lcd_return_to_status();
+  lcd_update_enable(true);
+  char msg[20];
+  sprintf_P(msg, PSTR("MMU Loading Ext:%d"), (tmp_extruder + 1));
+                     //********************
+  lcd_setstatus(msg); // 20 Chars 
 	mmu_command(MMU_CMD_T0 + tmp_extruder);
 	manage_response(true, true);
 	mmu_command(MMU_CMD_C0);
@@ -1270,9 +1270,6 @@ void lcd_mmu_load_to_nozzle(uint8_t filament_nr)
 	load_filament_final_feed();
 	st_synchronize();
 	custom_message_type = CUSTOM_MSG_TYPE_F_LOAD;
-	lcd_setstatuspgm(_T(MSG_LOADING_FILAMENT));
-	lcd_return_to_status();
-	lcd_update_enable(true);
 	lcd_load_filament_color_check();
 	lcd_setstatuspgm(_T(WELCOME_MSG));
 	custom_message_type = CUSTOM_MSG_TYPE_STATUS;

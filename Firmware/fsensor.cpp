@@ -375,7 +375,7 @@ bool fsensor_oq_result(void)
 
 ISR(FSENSOR_INT_PIN_VECT)
 {
-	//if (mmu_enabled) return;
+	if (!mmu_jam_det_enabled) return;
 	if (!((fsensor_int_pin_old ^ FSENSOR_INT_PIN_PIN_REG) & FSENSOR_INT_PIN_MASK)) return;
 	fsensor_int_pin_old = FSENSOR_INT_PIN_PIN_REG;
 	static bool _lock = false;
@@ -540,7 +540,7 @@ void fsensor_update(void)
         fsensor_autoload_enabled = autoload_enabled_tmp;
 		fsensor_oq_meassure_enabled = oq_meassure_enabled_tmp;
 	}
-	else if (fsensor_enabled && fsensor_watch_runout && (fsensor_err_cnt > FSENSOR_ERR_MAX))
+	else if (fsensor_enabled && fsensor_watch_runout && mmu_jam_det_enabled && (fsensor_err_cnt > FSENSOR_ERR_MAX))
   {
     bool autoload_enabled_tmp = fsensor_autoload_enabled;
     fsensor_autoload_enabled = false;

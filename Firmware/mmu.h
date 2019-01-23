@@ -9,6 +9,7 @@ extern bool mmuIdleFilamentTesting;
 extern bool mmu_jam_det_enabled;
 extern int8_t mmu_state;
 extern uint32_t mmu_last_request;
+extern uint8_t mmu_filament_types[];
 #define OCTO_NOTIFICATIONS_ON
 
 extern bool mmu_enabled;
@@ -42,6 +43,11 @@ extern int16_t mmu_buildnr;
 #define MMU_CMD_E3   0x53
 #define MMU_CMD_E4   0x54
 #define MMU_CMD_R0   0x60
+#define MMU_CMD_F0   0x80
+#define MMU_CMD_F1   0x81
+#define MMU_CMD_F2   0x82
+#define MMU_CMD_F3   0x83
+#define MMU_CMD_F4   0x84
 
 
 extern void mmu_init(void);

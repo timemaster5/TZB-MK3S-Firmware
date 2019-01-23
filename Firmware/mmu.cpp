@@ -35,14 +35,14 @@ bool mmu_ready = false;
 bool isMMUPrintPaused = false;
 bool mmuFSensorLoading = false;
 bool mmuIdleFilamentTesting = true;
-//bool fsensorManualOverride = false;
 bool mmu_jam_det_enabled = true;
 int lastLoadedFilament = -10;
 uint16_t toolChanges = 0;
 uint8_t mmuE0BackupCurrents[2] = {0, 0};
 void shutdownE0(bool shutdown = true);
 #define TXTimeout   60           //60ms
-uint8_t unload_filament_type[3] = {0, 0, 0};
+//uint8_t unload_filament_type[3] = {0, 0, 0};
+uint8_t mmu_filament_types[5] = {0, 0, 0, 0, 0};
 void mmu_unload_synced(uint16_t _filament_type_speed);
 
 
@@ -415,6 +415,14 @@ void mmu_loop(void)
         uart2_txPayload((unsigned char*)"R0-");
         mmu_state = 3; // wait for response
 
+      } else if ((mmu_cmd >= MMU_CMD_F0) && (mmu_cmd <= MMU_CMD_F4))
+      {
+        uint8_t extruder = mmu_cmd - MMU_CMD_F0;
+        unsigned char tempTxCMD[3] = {'F', extruder, mmu_filament_types[extruder]};
+        printf_P(PSTR("MK3 => MMU 'F%d %d'\n"), extruder, mmu_filament_types[extruder]);
+        uart2_txPayload(tempTxCMD);
+        mmu_state = 3; // wait for response
+
       }
       mmu_cmd = 0;
     }
@@ -447,8 +455,8 @@ void adviseMMUFilamentSeenatExtruder(void)
 
 void mmu_set_filament_type(uint8_t extruder, uint8_t filament)
 {
-  printf_P(PSTR("MMU <= 'F%d %d'\n"), extruder, filament);
-  unsigned char tempFx[3] = {'F', (uint8_t)extruder, (uint8_t)filament};
+  printf_P(PSTR("MK3 => 'F%d %d'\n"), extruder, filament);
+  unsigned char tempFx[3] = {'F', extruder, filament};
   uart2_txPayload(tempFx);
 }
 
@@ -465,7 +473,7 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
 {
   st_synchronize();
   shutdownE0(false);
-  current_position[E_AXIS] -= 100;
+  current_position[E_AXIS] -= 70;
   plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], _filament_type_speed, active_extruder);
   st_synchronize();
   shutdownE0();

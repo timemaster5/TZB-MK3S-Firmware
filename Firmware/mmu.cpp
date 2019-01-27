@@ -35,7 +35,7 @@ bool mmu_ready = false;
 bool isMMUPrintPaused = false;
 bool mmuFSensorLoading = false;
 bool mmuIdleFilamentTesting = true;
-bool mmu_jam_det_enabled = true;
+bool mmu_jam_det_enabled = false;
 int lastLoadedFilament = -10;
 uint16_t toolChanges = 0;
 uint8_t mmuE0BackupCurrents[2] = {0, 0};
@@ -465,6 +465,7 @@ void mmu_command(uint8_t cmd)
   if (((cmd >= MMU_CMD_T0) && (cmd <= MMU_CMD_T4)) || ((cmd >= MMU_CMD_E0) && (cmd <= MMU_CMD_E4))) {
       shutdownE0();
   }
+  if ((cmd >= MMU_CMD_T0) && (cmd <= MMU_CMD_T4)) mmu_jam_det_enabled = false;
 	mmu_cmd = cmd;
 	mmu_ready = false;
 }

@@ -3037,7 +3037,7 @@ static void gcode_M600(bool automatic, float x_position, float y_position, float
 
   lcd_update_enable(true);
 
-  //Not let's go back to print
+  //Now let's go back to print
   fanSpeed = fanSpeedBckp;
 
   //Feed a little of filament to stabilize pressure
@@ -6145,12 +6145,19 @@ Sigma_Exit:
           } break;
 #endif
 
+        case 219: // M219 D or E set Jam MMU Detection
+          {
+            if (code_seen('E')) { // enable
+              if (mmu_enabled) mmu_jam_det_enabled = true;
+            }
+          }
+          break;
+                
         case 220: // M220 S<factor in percent>- set speed factor override percentage
           {
             if (code_seen('B')) //backup current speed factor
             {
               saved_feedmultiply_mm = feedmultiply;
-              if (mmu_enabled) mmu_jam_det_enabled = false;
             }
             if (code_seen('S'))
             {
@@ -6158,7 +6165,6 @@ Sigma_Exit:
             }
             if (code_seen('R')) { //restore previous feedmultiply
               feedmultiply = saved_feedmultiply_mm;
-              if (mmu_enabled) mmu_jam_det_enabled = true;
             }
           }
           break;

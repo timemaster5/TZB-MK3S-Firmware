@@ -117,20 +117,14 @@ static volatile bool temp_meas_ready = false;
   // static float pid_output[EXTRUDERS];
   static bool pid_reset[EXTRUDERS];
 #endif //PIDTEMP
-#ifdef PIDTEMPBED
-  //static cannot be external:
-  static float temp_iState_bed = { 0 };
-  static float temp_dState_bed = { 0 };
-  static float pTerm_bed;
-  static float iTerm_bed;
-  static float dTerm_bed;
   //int output;
   static float pid_error_bed;
   static float temp_iState_min_bed;
   static float temp_iState_max_bed;
-#else //PIDTEMPBED
-	static unsigned long  previous_millis_bed_heater;
-#endif //PIDTEMPBED
+  static float float_target_temperature_bed = target_temperature_bed;
+
+  PID bedPID(&current_temperature_bed, &pid_error_bed, &float_target_temperature_bed, DEFAULT_bedKp, DEFAULT_bedKi, DEFAULT_bedKd, DIRECT);
+
   static unsigned char soft_pwm[EXTRUDERS];
 
 #ifdef FAN_SOFT_PWM
@@ -728,90 +722,14 @@ void manage_heater()
   #endif       
 #endif //DEBUG_DISABLE_FANCHECK
   
-  #ifndef PIDTEMPBED
-  if(_millis() - previous_millis_bed_heater < BED_CHECK_INTERVAL)
-    return;
-  previous_millis_bed_heater = _millis();
-  #endif
-
-  #if TEMP_SENSOR_BED != 0
-
-  #ifdef PIDTEMPBED
-    pid_input = current_temperature_bed;
-
-    #ifndef PID_OPENLOOP
-		  pid_error_bed = target_temperature_bed - pid_input;
-		  pTerm_bed = cs.bedKp * pid_error_bed;
-		  temp_iState_bed += pid_error_bed;
-		  temp_iState_bed = constrain(temp_iState_bed, temp_iState_min_bed, temp_iState_max_bed);
-		  iTerm_bed = cs.bedKi * temp_iState_bed;
-
-		  //K1 defined in Configuration.h in the PID settings
-		  #define K2 (1.0-K1)
-		  dTerm_bed= (cs.bedKd * (pid_input - temp_dState_bed))*K2 + (K1 * dTerm_bed);
-		  temp_dState_bed = pid_input;
-
-		  pid_output = pTerm_bed + iTerm_bed - dTerm_bed;
-          	  if (pid_output > MAX_BED_POWER) {
-            	    if (pid_error_bed > 0 )  temp_iState_bed -= pid_error_bed; // conditional un-integration
-                    pid_output=MAX_BED_POWER;
-          	  } else if (pid_output < 0){
-            	    if (pid_error_bed < 0 )  temp_iState_bed -= pid_error_bed; // conditional un-integration
-                    pid_output=0;
-                  }
-    #endif //PID_OPENLOOP
-
-#ifdef AMBIENT_THERMISTOR
-	  if(((current_temperature_bed > BED_MINTEMP) || (current_temperature_ambient < MINTEMP_MINAMBIENT)) && (current_temperature_bed < BED_MAXTEMP)) 
-#else //AMBIENT_THERMISTOR
-	  if((current_temperature_bed > BED_MINTEMP) && (current_temperature_bed < BED_MAXTEMP)) 
-#endif //AMBIENT_THERMISTOR
-	  {
+    float_target_temperature_bed = target_temperature_bed;
+    bedPID.Compute();
+    soft_pwm_bed = pid_error_bed;
+	  if(((current_temperature_bed > BED_MINTEMP) || (current_temperature_ambient < MINTEMP_MINAMBIENT)) && (current_temperature_bed < BED_MAXTEMP))
 	    soft_pwm_bed = (int)pid_output >> 1;
-	  }
-	  else {
-	    soft_pwm_bed = 0;
-	  }
+	  else soft_pwm_bed = 0;
+    OCR0B = soft_pwm_bed;
 
-    #elif !defined(BED_LIMIT_SWITCHING)
-      // Check if temperature is within the correct range
-      if((current_temperature_bed > BED_MINTEMP) && (current_temperature_bed < BED_MAXTEMP))
-      {
-        if(current_temperature_bed >= target_temperature_bed)
-        {
-          soft_pwm_bed = 0;
-        }
-        else 
-        {
-          soft_pwm_bed = MAX_BED_POWER>>1;
-        }
-      }
-      else
-      {
-        soft_pwm_bed = 0;
-        ??? WRITE(HEATER_BED_PIN,LOW);
-      }
-    #else //#ifdef BED_LIMIT_SWITCHING
-      // Check if temperature is within the correct band
-      if((current_temperature_bed > BED_MINTEMP) && (current_temperature_bed < BED_MAXTEMP))
-      {
-        if(current_temperature_bed > target_temperature_bed + BED_HYSTERESIS)
-        {
-          soft_pwm_bed = 0;
-        }
-        else if(current_temperature_bed <= target_temperature_bed - BED_HYSTERESIS)
-        {
-          soft_pwm_bed = MAX_BED_POWER>>1;
-        }
-      }
-      else
-      {
-        soft_pwm_bed = 0;
-        ??? WRITE(HEATER_BED_PIN,LOW);
-      }
-    #endif
-  #endif
-  
 #ifdef HOST_KEEPALIVE_FEATURE
   host_keepalive();
 #endif
@@ -1015,7 +933,7 @@ void tp_init()
   #endif  
   #if defined(HEATER_BED_PIN) && (HEATER_BED_PIN > -1) 
     SET_OUTPUT(HEATER_BED_PIN);
-  #endif  
+  #endif
   #if defined(FAN_PIN) && (FAN_PIN > -1) 
     SET_OUTPUT(FAN_PIN);
     #ifdef FAST_PWM_FAN
@@ -1050,8 +968,8 @@ void tp_init()
 
   // Use timer0 for temperature measurement
   // Interleave temperature interrupt with millies interrupt
-  OCR0B = 128;
-  TIMSK0 |= (1<<OCIE0B);  
+  OCR0B = 0; // 128;
+  TIMSK0 |= (1<<OCIE0B);
   
   // Wait for temperature measurement to settle
   delay(250);

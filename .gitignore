@@ -3,7 +3,6 @@
 .cproject
 .DS_Store
 Debug
-Firmware/Configuration_prusa.h
 Firmware/Doc
 /Firmware/.vs/Firmware/v14
 /Firmware/__vm

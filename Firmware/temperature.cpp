@@ -38,6 +38,7 @@
 #include "Sd2PinMap.h"
 
 #include <avr/wdt.h>
+#include "PID.h"
 #include "adc.h"
 #include "ConfigurationStore.h"
 
@@ -758,9 +759,6 @@ void manage_heater()
             	    if (pid_error_bed < 0 )  temp_iState_bed -= pid_error_bed; // conditional un-integration
                     pid_output=0;
                   }
-
-    #else 
-      pid_output = constrain(target_temperature_bed, 0, MAX_BED_POWER);
     #endif //PID_OPENLOOP
 
 #ifdef AMBIENT_THERMISTOR
@@ -791,7 +789,7 @@ void manage_heater()
       else
       {
         soft_pwm_bed = 0;
-        WRITE(HEATER_BED_PIN,LOW);
+        ??? WRITE(HEATER_BED_PIN,LOW);
       }
     #else //#ifdef BED_LIMIT_SWITCHING
       // Check if temperature is within the correct band
@@ -809,7 +807,7 @@ void manage_heater()
       else
       {
         soft_pwm_bed = 0;
-        WRITE(HEATER_BED_PIN,LOW);
+        ??? WRITE(HEATER_BED_PIN,LOW);
       }
     #endif
   #endif

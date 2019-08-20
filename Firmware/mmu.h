@@ -2,12 +2,10 @@
 
 #include <inttypes.h>
 
-
 extern bool mmu_enabled;
 extern bool mmuFSensorLoading;
 extern bool mmuIdleFilamentTesting;
 extern bool mmu_jam_det_enabled;
-extern int8_t mmu_state;
 extern uint32_t mmu_last_request;
 extern uint8_t mmu_filament_types[];
 #define OCTO_NOTIFICATIONS_ON

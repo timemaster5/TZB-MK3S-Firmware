@@ -29,6 +29,24 @@
 #define MMU_RST_PIN 76
 #endif //MMU_HWRESET
 
+namespace
+{  // MMU2S States
+  enum class S : uint_least8_t
+  {
+    SetMode1, // = -6,
+    FindaInit, // = -5,
+    GetActExt, // = -4,
+    GetBN, // = -3,
+    GetVer, // = -2,
+    Init, // = -1,
+    Disabled, // = 0,
+    Idle, // = 1,
+    GetFinda, // = 2,
+    Wait, // = 3
+    Loading
+  };
+}
+
 bool mmu_enabled = false;
 bool mmu_ready = false;
 bool isMMUPrintPaused = false;
@@ -75,7 +93,7 @@ bool check_for_ir_sensor()
 #endif //IR_SENSOR
 }
 
-int8_t mmu_state = 0;
+static S mmu_state = S::Disabled; //int8_t mmu_state = 0;
 uint8_t mmu_cmd = 0;
 uint8_t mmu_extruder = 0;
 
@@ -97,7 +115,7 @@ void mmu_init(void)
 	uart2_init();                              //init uart2
 	_delay_ms(10);                             //wait 10ms for sure
 	mmu_reset();                               //reset mmu (HW or SW), do not wait for response
-	mmu_state = -1;
+	mmu_state = S::Init;
   PIN_INP(IR_SENSOR_PIN); //input mode
   PIN_SET(IR_SENSOR_PIN); //pullup
 }
@@ -119,7 +137,7 @@ void mmu_loop(void)
 {
   int filament = 0;
 #ifdef MMU_DEBUG
-  printf_P(PSTR("MMU loop, state=%d\n"), mmu_state);
+  printf_P(PSTR("MMU loop, state=%d\n"), (int)mmu_state);
 #endif //MMU_DEBUG
   unsigned char tData1 = rxData1;                  // Copy volitale vars as local
   unsigned char tData2 = rxData2;
@@ -148,7 +166,7 @@ void mmu_loop(void)
     uart2_txACK();      // Send  ACK Byte
 
 
-    if (mmu_state > 0) {
+    if (mmu_state > S::Disabled) {
       // Undates Active Extruder when every MMU is changed. eg. manual ex selection fro feed_filament
       if ((tData1 == 'A') && (tData2 == 'E') && (tData3 < 5)) {
         printf_P(PSTR("MMU => MK3 'OK Active Extruder:%d'\n"), tmp_extruder + 1);
@@ -178,7 +196,7 @@ void mmu_loop(void)
         printf_P(PSTR("// action:mmuFailedLoad2\n"));
 #endif // OCTO_NOTIFICATIONS_ON
         mmuFSensorLoading = false;
-        mmu_state = 3;
+        mmu_state = S::Wait;
         mmu_last_response = _millis(); // Update last response counter
 
       } else if ((tData1 == 'Z') && (tData2 == 'U')) { // MMU Unloading Failed
@@ -265,7 +283,7 @@ void mmu_loop(void)
     }
 
 
-    if (mmu_state == -1) {
+    if (mmu_state == S::Init) {
       if ((tData1 == 'S') && (tData2 == 'T') && (tData3 == 'R')) {
 #ifdef MMU_DEBUG
         puts_P(PSTR("MMU => MK3 'start'"));
@@ -273,31 +291,31 @@ void mmu_loop(void)
 #endif //MMU_DEBUG
         mmu_last_response = _millis(); // Update last response counter
         uart2_txPayload((unsigned char*)"S1-");
-        mmu_state = -2;
+        mmu_state = S::GetVer;
       } else if (_millis() > 30000) { //30sec after reset disable mmu
         puts_P(PSTR("MMU not responding - DISABLED"));
-        mmu_state = 0;
+        mmu_state = S::Disabled;
       } // End of if STR
 
-    } else if (mmu_state == -2) {
+    } else if (mmu_state == S::GetVer) {
       mmu_version = ((tData1 << 8) | (tData2));
       printf_P(PSTR("MMU => MK3 '%d'\n"), mmu_version);
 #ifdef MMU_DEBUG
       puts_P(PSTR("MK3 => MMU 'S2'"));
 #endif //MMU_DEBUG
       uart2_txPayload((unsigned char*)"S2-");
-      mmu_state = -3;
+      mmu_state = S::GetBN;
 
-    } else if (mmu_state == -3) {
+    } else if (mmu_state == S::GetBN) {
       mmu_buildnr = ((tData1 << 8) | (tData2));
       printf_P(PSTR("MMU => MK3 '%d'\n"), mmu_buildnr);
       bool version_valid = mmu_check_version();
       if (!version_valid) mmu_show_warning();
       else puts_P(PSTR("MMU version valid"));
       uart2_txPayload((unsigned char*)"S3-");
-      mmu_state = -4;
+      mmu_state = S::GetActExt;
 
-    } else if (mmu_state == -4) {
+    } else if (mmu_state == S::GetActExt) {
       tmp_extruder = tData3;
       mmu_extruder = tmp_extruder;
       printf_P(PSTR("MMU => MK3 'Active Extruder:%d'\n"), tmp_extruder + 1);
@@ -306,16 +324,16 @@ void mmu_loop(void)
         puts_P(PSTR("MK3 => MMU 'P0'"));
 #endif //MMU_DEBUG
         uart2_txPayload((unsigned char*)"P0-");
-        mmu_state = -5;
+        mmu_state = S::FindaInit;
       } else {
 #ifdef MMU_DEBUG
         puts_P(PSTR("MK3 => MMU 'M1'"));
 #endif //MMU_DEBUG
         uart2_txPayload((unsigned char*)"M1-");
-        mmu_state = -6;
+        mmu_state = S::SetMode1;
       }
 
-    } else if (mmu_state == -5) {
+    } else if (mmu_state == S::FindaInit) {
       if ((tData1 == 'P') && (tData2 == 'K')) {
         mmu_finda = tData3;
 #ifdef MMU_DEBUG
@@ -323,20 +341,20 @@ void mmu_loop(void)
 #endif //MMU_DEBUG
         puts_P(PSTR("MMU - ENABLED"));
         mmu_enabled = true;
-        mmu_state = 1;
+        mmu_state = S::Idle;
         fsensor_enable();
       }
 
-    } else if (mmu_state == -6) {
+    } else if (mmu_state == S::SetMode1) {
       if ((tData1 == 'O') && (tData2 == 'K')) {
 #ifdef MMU_DEBUG
         puts_P(PSTR("MMU => MK3 'P0'"));
 #endif //MMU_DEBUG
         uart2_txPayload((unsigned char*)"P0-");
-        mmu_state = -5;
+        mmu_state = S::FindaInit;
       }
 
-    } else if (mmu_state == 2) {
+    } else if (mmu_state == S::GetFinda) {
       if ((tData1 == 'P') && (tData2 == 'K')) {
         mmu_finda = tData3;
 #ifdef MMU_DEBUG
@@ -352,11 +370,11 @@ void mmu_loop(void)
           else enquecommand_front_P(PSTR("M600")); //save print and run M600 command
         }
         mmu_last_response = _millis(); // Update last response counter
-        mmu_state = 1;
+        mmu_state = S::Idle;
       } else if (((mmu_last_response + 3) < _millis()) && !mmuFSensorLoading)
-        mmu_state = 3;
+        mmu_state = S::Wait;
 
-    } else if (mmu_state == 3) {
+    } else if (mmu_state == S::Wait) {
       if (tData1 == 'U') {
 	      mmu_unload_synced((tData2 << 8) | (tData3));
 	      printf_P(PSTR("MMU => MK3 Unload Feedrate: %d%d\n"), tData2, tData3);
@@ -366,24 +384,24 @@ void mmu_loop(void)
         printf_P(PSTR("MMU => MK3 'ok'\n"));
         mmu_last_response = _millis(); // Update last response counter
         mmu_ready = true;
-        mmu_state = 1;
+        mmu_state = S::Idle;
       }
       
     } // End of mmu_state if statement
-    if (((mmu_state == 1) || (mmu_state == 3)) && ((tData1 == 'F') && (tData2 == 'S'))) {
+    if (((mmu_state == S::Idle) || (mmu_state == S::Wait)) && ((tData1 == 'F') && (tData2 == 'S'))) {
       printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 Sensor'\n"));
-      if (!fsensor_enabled) fsensor_enable();
+      /*if (!fsensor_enabled) fsensor_enable();
       if (!fsensor_enabled) {
         lcd_clear();
         lcd_set_cursor(4, 2);
         lcd_puts_P(_T(MSG_FSENSOR_OFF));
         delay(1000);
         lcd_clear();
-      }
+      }*/
       txRESEND         = false;
       startRxFlag      = false;
       pendingACK       = false;
-      fsensor_autoload_check_stop();
+      //fsensor_autoload_check_stop();
       mmu_last_response = _millis(); // Update last response counter
       mmuFSensorLoading = true;
     }
@@ -391,7 +409,7 @@ void mmu_loop(void)
     return;
   } // End of ConfPayload Area
 
-  if (mmu_state == 1) {
+  if (mmu_state == S::Idle) {
     if (mmu_cmd) {
       if ((mmu_cmd >= MMU_CMD_T0) && (mmu_cmd <= MMU_CMD_T4))
       {
@@ -402,7 +420,7 @@ void mmu_loop(void)
         //printf_P(PSTR("MK3 => MMU 'T%d @toolChange:%d'\n"), filament, toolChanges);
         printf_P(PSTR("MK3 => MMU 'T%d'\n"), filament);
         uart2_txPayload(tempTxCMD);
-        mmu_state = 3; // wait for response
+        mmu_state = S::Wait;
 
       } else if ((mmu_cmd >= MMU_CMD_L0) && (mmu_cmd <= MMU_CMD_L4))
       {
@@ -410,13 +428,13 @@ void mmu_loop(void)
         printf_P(PSTR("MK3 => MMU 'L%d'\n"), filament);
         unsigned char tempLxCMD[3] = {'L', (uint8_t)filament, BLK};
         uart2_txPayload(tempLxCMD);
-        mmu_state = 3; // wait for response
+        mmu_state = S::Wait;
 
       } else if (mmu_cmd == MMU_CMD_C0)
       {
         printf_P(PSTR("MK3 => MMU 'C0'\n"));
         uart2_txPayload((unsigned char*)"C0-");
-        mmu_state = 3; // wait for response
+        mmu_state = S::Wait;
 
       } else if (mmu_cmd == MMU_CMD_U0)
       {
@@ -424,7 +442,7 @@ void mmu_loop(void)
         uart2_txPayload((unsigned char*)"U0-");
         mmuIdleFilamentTesting = true;
         //toolChanges = 0;
-        mmu_state = 3; // wait for response
+        mmu_state = S::Wait;
 
       } else if ((mmu_cmd >= MMU_CMD_E0) && (mmu_cmd <= MMU_CMD_E4))
       {
@@ -432,13 +450,13 @@ void mmu_loop(void)
         printf_P(PSTR("MK3 => MMU 'E%d'\n"), filament);
         unsigned char tempExCMD[3] = {'E', (uint8_t)filament, BLK};
         uart2_txPayload(tempExCMD);
-        mmu_state = 3; // wait for response
+        mmu_state = S::Wait;
 
       } else if (mmu_cmd == MMU_CMD_R0)
       {
         printf_P(PSTR("MK3 => MMU 'R0'\n"));
         uart2_txPayload((unsigned char*)"R0-");
-        mmu_state = 3; // wait for response
+        mmu_state = S::Wait;
 
       } else if ((mmu_cmd >= MMU_CMD_F0) && (mmu_cmd <= MMU_CMD_F4))
       {
@@ -446,15 +464,18 @@ void mmu_loop(void)
         unsigned char tempTxCMD[3] = {'F', extruder, mmu_filament_types[extruder]};
         printf_P(PSTR("MK3 => MMU 'F%d %d'\n"), extruder, mmu_filament_types[extruder]);
         uart2_txPayload(tempTxCMD);
-        mmu_state = 3; // wait for response
+        mmu_state = S::Wait;
 
       }
       mmu_cmd = 0;
     }
     else if (((mmu_last_response + 500) < _millis()) && !mmuFSensorLoading) //request every 500ms
     {
+#ifndef IR_SENSOR
+      if(check_for_ir_sensor()) ir_sensor_detected = true;
+#endif //IR_SENSOR not defined
       uart2_txPayload((unsigned char*)"P0-");
-      mmu_state = 2;
+      mmu_state = S::GetFinda;
     }
   } // end of if mmu_cmd
 }
@@ -522,7 +543,7 @@ bool mmu_get_response(void)
       startRxFlag      = false;
       uart2_txPayload(lastTxPayload);
     }
-    if (((mmu_state == 3) || (mmu_state == 10) || mmuFSensorLoading) && ((mmu_last_request + MMU_CMD_TIMEOUT) > _millis())) {
+    if (((mmu_state == S::Wait) || (mmu_state == S::Loading) || mmuFSensorLoading) && ((mmu_last_request + MMU_CMD_TIMEOUT) > _millis())) {
       delay_keep_alive(100);
     } else {
       break;

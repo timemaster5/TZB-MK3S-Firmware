@@ -4,6 +4,7 @@
  */
 
 #include "Timer.h"
+#include "system_timer.h"
 #include "Arduino.h"
 
 /**
@@ -23,7 +24,7 @@ Timer<T>::Timer() : m_isRunning(false), m_started()
 template<typename T>
 void Timer<T>::start()
 {
-    m_started = millis();
+    m_started = _millis();
     m_isRunning = true;
 }
 
@@ -45,7 +46,7 @@ bool Timer<T>::expired(T msPeriod)
 {
     if (!m_isRunning) return false;
     bool expired = false;
-    const T now = millis();
+    const T now = _millis();
     if (m_started <=  m_started + msPeriod)
     {
         if ((now >= m_started + msPeriod) || (now < m_started))

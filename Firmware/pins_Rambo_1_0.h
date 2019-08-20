@@ -102,7 +102,7 @@
 
 #define SDCARDDETECT           72
 
-
+#define IR_SENSOR_PIN 20 //idler sensor 
 
 // Support for an 8 bit logic analyzer, for example the Saleae.
 // Channels 0-2 are fast, they could generate 2.667Mhz waveform with a software loop.
@@ -115,8 +115,8 @@
 #define LOGIC_ANALYZER_CH3 		73				// PJ3
 // PK0 has no Arduino digital pin assigned, so we set it directly.
 #define WRITE_LOGIC_ANALYZER_CH4(value) if (value) PORTK |= (1 << 0); else PORTK &= ~(1 << 0) // PK0
-//#define LOGIC_ANALYZER_CH5		16				// PH0 (RXD2)
-//#define LOGIC_ANALYZER_CH6		17				// PH1 (TXD2)
+#define LOGIC_ANALYZER_CH5		16				// PH0 (RXD2)
+#define LOGIC_ANALYZER_CH6		17				// PH1 (TXD2)
 #define LOGIC_ANALYZER_CH7 		76				// PJ5
 
 #define LOGIC_ANALYZER_CH0_ENABLE SET_OUTPUT(LOGIC_ANALYZER_CH0)
@@ -124,6 +124,7 @@
 #define LOGIC_ANALYZER_CH2_ENABLE SET_OUTPUT(LOGIC_ANALYZER_CH2)
 #define LOGIC_ANALYZER_CH3_ENABLE SET_OUTPUT(LOGIC_ANALYZER_CH3)
 #define LOGIC_ANALYZER_CH4_ENABLE do { DDRK |= 1 << 0; } while (0)
-//#define LOGIC_ANALYZER_CH5_ENABLE do { cbi(UCSR2B, TXEN2); cbi(UCSR2B, RXEN2); cbi(UCSR2B, RXCIE2); SET_OUTPUT(LOGIC_ANALYZER_CH5); } while (0)
-//#define LOGIC_ANALYZER_CH6_ENABLE do { cbi(UCSR2B, TXEN2); cbi(UCSR2B, RXEN2); cbi(UCSR2B, RXCIE2); SET_OUTPUT(LOGIC_ANALYZER_CH6); } while (0)
+#define LOGIC_ANALYZER_CH5_ENABLE do { cbi(UCSR2B, TXEN2); cbi(UCSR2B, RXEN2); cbi(UCSR2B, RXCIE2); SET_OUTPUT(LOGIC_ANALYZER_CH5); } while (0)
+#define LOGIC_ANALYZER_CH6_ENABLE do { cbi(UCSR2B, TXEN2); cbi(UCSR2B, RXEN2); cbi(UCSR2B, RXCIE2); SET_OUTPUT(LOGIC_ANALYZER_CH6); } while (0)
 #define LOGIC_ANALYZER_CH7_ENABLE SET_OUTPUT(LOGIC_ANALYZER_CH7)
+

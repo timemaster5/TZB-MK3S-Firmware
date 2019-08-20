@@ -147,6 +147,7 @@ void fsensor_init(void)
 	else
 		fsensor_disable();
 	printf_P(PSTR("FSensor %S\n"), (fsensor_enabled?PSTR("ENABLED"):PSTR("DISABLED\n")));
+  if (check_for_ir_sensor()) ir_sensor_detected = true;
 }
 
 bool fsensor_enable(void)
@@ -226,7 +227,7 @@ void fsensor_autoload_check_start(void)
 	fsensor_autoload_y = pat9125_y; //save current y value
 	fsensor_autoload_c = 0; //reset number of changes counter
 	fsensor_autoload_sum = 0;
-	fsensor_autoload_last_millis = millis();
+	fsensor_autoload_last_millis = _millis();
 	fsensor_watch_runout = false;
 	fsensor_watch_autoload = true;
 	fsensor_err_cnt = 0;
@@ -253,6 +254,15 @@ bool fsensor_check_autoload(void)
 	if (mmu_enabled) {
     if (!fsensor_autoload_enabled) fsensor_autoload_enabled = true;
 	} else if (!fsensor_autoload_enabled) return false;
+  if (ir_sensor_detected) {
+    if (digitalRead(IR_SENSOR_PIN) == 1) {
+      fsensor_watch_autoload = true;
+    }
+    else if (fsensor_watch_autoload == true) {
+      fsensor_watch_autoload = false;
+      return true;
+    }
+  }
 	if (!fsensor_watch_autoload)
 	{
 		fsensor_autoload_check_start();
@@ -261,8 +271,8 @@ bool fsensor_check_autoload(void)
 #if 0
 	uint8_t fsensor_autoload_c_old = fsensor_autoload_c;
 #endif
-	if ((millis() - fsensor_autoload_last_millis) < 25) return false;
-	fsensor_autoload_last_millis = millis();
+	if ((_millis() - fsensor_autoload_last_millis) < 25) return false;
+	fsensor_autoload_last_millis = _millis();
 	if (!pat9125_update_y()) //update sensor
 	{
 		fsensor_disable();
@@ -375,7 +385,7 @@ bool fsensor_oq_result(void)
 
 ISR(FSENSOR_INT_PIN_VECT)
 {
-	if (!mmu_jam_det_enabled) return;
+	if (!mmu_jam_det_enabled || ir_sensor_detected) return;
 	if (!((fsensor_int_pin_old ^ FSENSOR_INT_PIN_PIN_REG) & FSENSOR_INT_PIN_MASK)) return;
 	fsensor_int_pin_old = FSENSOR_INT_PIN_PIN_REG;
 	static bool _lock = false;
@@ -490,6 +500,7 @@ void fsensor_st_block_chunk(block_t* bl, int cnt)
 //! If there is still no plausible signal from filament sensor plans M600 (Filament change).
 void fsensor_update(void)
 {
+#ifdef PAT9125
 	if (fsensor_enabled && fsensor_watch_runout && (fsensor_err_cnt > FSENSOR_ERR_MAX) && !mmu_enabled)
 	{
         bool autoload_enabled_tmp = fsensor_autoload_enabled;
@@ -562,6 +573,16 @@ void fsensor_update(void)
     fsensor_autoload_enabled = autoload_enabled_tmp;
     fsensor_oq_meassure_enabled = oq_meassure_enabled_tmp;
   }
+#else //PAT9125
+    if ((digitalRead(IR_SENSOR_PIN) == 1) && CHECK_FSENSOR && fsensor_enabled && ir_sensor_detected && ( ! fsensor_m600_enqueued) )
+    {
+#ifdef OCTO_NOTIFICATIONS_ON
+    printf_P(PSTR("// action:jamDetectedIR\n"));
+#endif // OCTO_NOTIFICATIONS_ON      
+      fsensor_stop_and_save_print();
+      fsensor_enque_M600();
+    }
+#endif //PAT9125
 }
 
 void fsensor_setup_interrupt(void)

@@ -13,6 +13,7 @@ extern uint8_t mmu_filament_types[];
 #define OCTO_NOTIFICATIONS_ON
 
 extern bool mmu_enabled;
+extern bool ir_sensor_detected;
 
 extern uint8_t mmu_extruder;
 
@@ -51,27 +52,17 @@ extern int16_t mmu_buildnr;
 
 
 extern void mmu_init(void);
-
 extern void mmu_loop(void);
-
-
 extern void mmu_reset(void);
-
+extern bool check_for_ir_sensor();
 extern void adviseMMUFilamentSeenatExtruder(void);
-
 extern void mmu_set_filament_type(uint8_t extruder, uint8_t filament);
-
 extern void mmu_command(uint8_t cmd);
-
 extern bool mmu_get_response(void);
-
 extern void manage_response(bool move_axes, bool turn_off_nozzle);
-
 extern void mmu_load_to_nozzle();
-
 extern void mmu_M600_load_filament(bool automatic);
 extern void mmu_M600_wait_and_beep();
-
 extern void extr_mov(float shift, float feed_rate);
 extern void change_extr(int extr);
 extern int get_ext_nr();

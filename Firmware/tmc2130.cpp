@@ -381,7 +381,7 @@ bool tmc2130_wait_standstill_xy(int timeout)
 void tmc2130_check_overtemp()
 {
 	static uint32_t checktime = 0;
-	if (millis() - checktime > 1000 )
+	if (_millis() - checktime > 1000 )
 	{
 		for (int i = 0; i < 4; i++)
 		{
@@ -398,7 +398,7 @@ void tmc2130_check_overtemp()
 			}
 
 		}
-		checktime = millis();
+		checktime = _millis();
 		tmc2130_sg_change = true;
 	}
 #ifdef DEBUG_CRASHDET_COUNTERS

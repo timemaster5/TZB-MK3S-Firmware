@@ -1,5 +1,6 @@
 //uart2.cpp
 #include "uart2.h"
+#include "system_timer.h"
 
 volatile unsigned char readRxBuffer, rxData1 = 0, rxData2 = 0, rxData3 = 0,
                                      rxCSUM1 = 0, rxCSUM2 = 0;
@@ -73,7 +74,7 @@ void uart2_txPayload(unsigned char payload[])
 #ifdef MMU_DEBUG
     printf_P(PSTR("\nUART2 TX 0x%2X %2X %2X\n"), payload[0], payload[1], payload[2]);
 #endif //MMU_DEBUG
-    mmu_last_request = millis();
+    mmu_last_request = _millis();
 
 
     for (uint8_t i = 0; i < 3; i++) lastTxPayload[i] = payload[i];  // Backup incase resend on NACK
@@ -92,7 +93,7 @@ void uart2_txPayload(unsigned char payload[])
     loop_until_bit_is_set(UCSR2A, UDRE2);     // Do nothing until UDR is ready for more data to be written to it
     if (!txRESEND) UDR2 = 0xF7;
     pendingACK = true;                        // Set flag to wait for ACK
-    startTXTimeout = millis();                // Start Tx timeout counter
+    startTXTimeout = _millis();                // Start Tx timeout counter
 }
 
 void uart2_txACK(bool ACK)

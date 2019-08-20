@@ -99,10 +99,7 @@
 
 //#define KILL_PIN            32
 
-
-//#define LCD_PWM_PIN         -1//32  // lcd backlight brightnes pwm control pin
-//#define LCD_PWM_MAX       0x0f  // lcd pwm maximum value (0x07=64Hz, 0x0f=32Hz, 0x1f=16Hz)
-
+//#define LCD_BL_PIN          5   //backlight control pin
 #define BEEPER              84  // Beeper on AUX-4
 #define LCD_PINS_RS         82
 #define LCD_PINS_ENABLE     61 // !!! changed from 18 (EINY03)
@@ -121,6 +118,7 @@
 #define TACH_0                 79 // !!! changed from 81 (EINY03)
 #define TACH_1                 80 
 
+#define IR_SENSOR_PIN 62 //idler sensor @PK0 (digital pin 62/A8)
 
 // Support for an 8 bit logic analyzer, for example the Saleae.
 // Channels 0-2 are fast, they could generate 2.667Mhz waveform with a software loop.
@@ -133,6 +131,8 @@
 #define LOGIC_ANALYZER_CH3 		73				// PJ3
 // PK0 has no Arduino digital pin assigned, so we set it directly.
 #define WRITE_LOGIC_ANALYZER_CH4(value) if (value) PORTK |= (1 << 0); else PORTK &= ~(1 << 0) // PK0
+#define LOGIC_ANALYZER_CH5		16				// PH0 (RXD2)
+#define LOGIC_ANALYZER_CH6		17				// PH1 (TXD2)
 #define LOGIC_ANALYZER_CH7 		76				// PJ5
 
 #define LOGIC_ANALYZER_CH0_ENABLE do { SET_OUTPUT(LOGIC_ANALYZER_CH0); WRITE(LOGIC_ANALYZER_CH0, false); } while (0)
@@ -140,4 +140,19 @@
 #define LOGIC_ANALYZER_CH2_ENABLE do { SET_OUTPUT(LOGIC_ANALYZER_CH2); WRITE(LOGIC_ANALYZER_CH2, false); } while (0)
 #define LOGIC_ANALYZER_CH3_ENABLE do { SET_OUTPUT(LOGIC_ANALYZER_CH3); WRITE(LOGIC_ANALYZER_CH3, false); } while (0)
 #define LOGIC_ANALYZER_CH4_ENABLE do { DDRK |= 1 << 0; WRITE_LOGIC_ANALYZER_CH4(false); } while (0)
+#define LOGIC_ANALYZER_CH5_ENABLE do { cbi(UCSR2B, TXEN2); cbi(UCSR2B, RXEN2); cbi(UCSR2B, RXCIE2); SET_OUTPUT(LOGIC_ANALYZER_CH5); WRITE(LOGIC_ANALYZER_CH5, false); } while (0)
+#define LOGIC_ANALYZER_CH6_ENABLE do { cbi(UCSR2B, TXEN2); cbi(UCSR2B, RXEN2); cbi(UCSR2B, RXCIE2); SET_OUTPUT(LOGIC_ANALYZER_CH6); WRITE(LOGIC_ANALYZER_CH6, false); } while (0)
 #define LOGIC_ANALYZER_CH7_ENABLE do { SET_OUTPUT(LOGIC_ANALYZER_CH7); WRITE(LOGIC_ANALYZER_CH7, false); } while (0)
+
+// Async output on channel 5 of the logical analyzer.
+// Baud rate 2MBit, 9 bits, 1 stop bit.
+#define LOGIC_ANALYZER_SERIAL_TX_ENABLE do { UBRR2H = 0; UBRR2L = 0; UCSR2B = (1 << TXEN2) | (1 << UCSZ02); UCSR2C = 0x06; } while (0)
+// Non-checked (quicker) variant. Use it if you are sure that the transmit buffer is already empty.
+#define LOGIC_ANALYZER_SERIAL_TX_WRITE_NC(C) do { if (C & 0x100) UCSR2B |= 1; else UCSR2B &= ~1; UDR2 = C; } while (0)
+#define LOGIC_ANALYZER_SERIAL_TX_WRITE(C) do { \
+	/* Wait for empty transmit buffer */ \
+	while (!(UCSR2A & (1<<UDRE2))); \
+	/* Put data into buffer, sends the data */ \
+	LOGIC_ANALYZER_SERIAL_TX_WRITE_NC(C); \
+} while (0)
+

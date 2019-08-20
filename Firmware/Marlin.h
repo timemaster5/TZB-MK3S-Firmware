@@ -16,8 +16,7 @@
 #include <avr/pgmspace.h>
 #include <avr/eeprom.h>
 #include <avr/interrupt.h>
-
-
+#include "system_timer.h"
 #include "fastio.h"
 #include "Configuration.h"
 #include "pins.h"
@@ -259,10 +258,12 @@ void refresh_cmd_timeout(void);
 // The standard Arduino timer() function returns this value atomically
 // by disabling / enabling interrupts. This is costly, if the interrupts are known
 // to be disabled.
-extern volatile unsigned long timer0_millis;
-// An unsynchronized equivalent to a standard Arduino millis() function.
+extern volatile unsigned long timer2_millis;
+
+// An unsynchronized equivalent to a standard Arduino __millis() function.
 // To be used inside an interrupt routine.
-FORCE_INLINE unsigned long millis_nc() { return timer0_millis; }
+
+FORCE_INLINE unsigned long millis_nc() { return timer2_millis; }
 
 #ifdef FAST_PWM_FAN
 void setPwmFrequency(uint8_t pin, int val);

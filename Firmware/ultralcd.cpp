@@ -560,7 +560,7 @@ void lcdui_print_farm(void)
         
         // Beat display
         lcd_set_cursor(LCD_WIDTH - 1, 0);
-        if ( (millis() - kicktime) < 60000 ) {
+        if ( (_millis() - kicktime) < 60000 ) {
         
             lcd_puts_P(PSTR("L"));
         
@@ -601,7 +601,7 @@ void lcdui_print_time(void)
 	if (print_time_remaining_normal != PRINT_TIME_REMAINING_INIT)
 		print_t = print_time_remaining();
 	else if(starttime != 0)
-		print_t = millis() / 60000 - starttime / 60000;
+		print_t = _millis() / 60000 - starttime / 60000;
 	int chars = 0;
 	if ((PRINTER_ACTIVE) && ((print_time_remaining_normal != PRINT_TIME_REMAINING_INIT) || (starttime != 0)))
 	{
@@ -1720,10 +1720,10 @@ void lcd_commands()
 			else {
 				SERIAL_ECHOPGM("Invalid PID cal. results. Not stored to EEPROM.");
 			}
-			display_time = millis();
+			display_time = _millis();
 			lcd_commands_step = 1;
 		}
-		if ((lcd_commands_step == 1) && ((millis()- display_time)>2000)) { //calibration finished message
+		if ((lcd_commands_step == 1) && ((_millis()- display_time)>2000)) { //calibration finished message
 			lcd_setstatuspgm(_T(WELCOME_MSG));
 			custom_message_type = CUSTOM_MSG_TYPE_STATUS;
 			pid_temp = DEFAULT_PID_TEMP;
@@ -2498,7 +2498,7 @@ void lcd_menu_statistics()
 	if (IS_SD_PRINTING)
 	{
 		const float _met = ((float)total_filament_used) / (100000.f);
-		const uint32_t _t = (millis() - starttime) / 1000ul;
+		const uint32_t _t = (_millis() - starttime) / 1000ul;
 		const int _h = _t / 3600;
 		const int _m = (_t - (_h * 3600ul)) / 60ul;
 		const int _s = _t - ((_h * 3600ul) + (_m * 60ul));
@@ -3076,22 +3076,22 @@ bool lcd_calibrate_z_end_stop_manual(bool only_z)
 
     // Until confirmed by the confirmation dialog.
     for (;;) {
-        unsigned long previous_millis_cmd = millis();
+        unsigned long previous_millis_cmd = _millis();
         const char   *msg                 = only_z ? _i("Calibrating Z. Rotate the knob to move the Z carriage up to the end stoppers. Click when done.") : _i("Calibrating XYZ. Rotate the knob to move the Z carriage up to the end stoppers. Click when done.");////MSG_MOVE_CARRIAGE_TO_THE_TOP c=20 r=8////MSG_MOVE_CARRIAGE_TO_THE_TOP_Z c=20 r=8
         const char   *msg_next            = lcd_display_message_fullscreen_P(msg);
         const bool    multi_screen        = msg_next != NULL;
-        unsigned long previous_millis_msg = millis();
+        unsigned long previous_millis_msg = _millis();
         // Until the user finishes the z up movement.
         lcd_encoder_diff = 0;
         lcd_encoder = 0;
         for (;;) {
-//          if (millis() - previous_millis_cmd > LCD_TIMEOUT_TO_STATUS)
+//          if (_millis() - previous_millis_cmd > LCD_TIMEOUT_TO_STATUS)
 //             goto canceled;
             manage_heater();
             manage_inactivity(true);
             if (abs(lcd_encoder_diff) >= ENCODER_PULSES_PER_STEP) {
                 delay(50);
-                previous_millis_cmd = millis();
+                previous_millis_cmd = _millis();
                 lcd_encoder += abs(lcd_encoder_diff / ENCODER_PULSES_PER_STEP);
                 lcd_encoder_diff = 0;
                 if (! planner_queue_full()) {
@@ -3109,11 +3109,11 @@ bool lcd_calibrate_z_end_stop_manual(bool only_z)
                 while (lcd_clicked()) ;
                 break;
             }
-            if (multi_screen && millis() - previous_millis_msg > 5000) {
+            if (multi_screen && _millis() - previous_millis_msg > 5000) {
                 if (msg_next == NULL)
                     msg_next = msg;
                 msg_next = lcd_display_message_fullscreen_P(msg_next);
-                previous_millis_msg = millis();
+                previous_millis_msg = _millis();
             }
         }
         // Let the user confirm, that the Z carriage is at the top end stoppers.
@@ -3283,13 +3283,13 @@ bool lcd_wait_for_click_delay(uint16_t nDelay)
 // true ~ clicked, false ~ delayed
 {
 bool bDelayed;
-long nTime0 = millis()/1000;
+long nTime0 = _millis()/1000;
 	lcd_consume_click();
 	KEEPALIVE_STATE(PAUSED_FOR_USER);
     for (;;) {
         manage_heater();
         manage_inactivity(true);
-        bDelayed = ((millis()/1000-nTime0) > nDelay);
+        bDelayed = ((_millis()/1000-nTime0) > nDelay);
         bDelayed = (bDelayed && (nDelay != 0));   // 0 ~ no timeout, always waiting for click
         if (lcd_clicked() || bDelayed) {
 			KEEPALIVE_STATE(IN_HANDLER);
@@ -3331,14 +3331,14 @@ int8_t lcd_show_multiscreen_message_two_choices_and_wait_P(const char *msg, bool
 	bool yes = default_first ? true : false;
 
 	// Wait for user confirmation or a timeout.
-	unsigned long previous_millis_cmd = millis();
+	unsigned long previous_millis_cmd = _millis();
 	int8_t        enc_dif = lcd_encoder_diff;
 	lcd_consume_click();
 	//KEEPALIVE_STATE(PAUSED_FOR_USER);
 	for (;;) {
 		for (uint8_t i = 0; i < 100; ++i) {
 			delay_keep_alive(50);
-			if (allow_timeouting && millis() - previous_millis_cmd > LCD_TIMEOUT_TO_STATUS)
+			if (allow_timeouting && _millis() - previous_millis_cmd > LCD_TIMEOUT_TO_STATUS)
 				return -1;
 			manage_heater();
 			manage_inactivity(true);
@@ -3421,12 +3421,12 @@ int8_t lcd_show_fullscreen_message_yes_no_and_wait_P(const char *msg, bool allow
 	bool yes = default_yes ? true : false;
 
 	// Wait for user confirmation or a timeout.
-	unsigned long previous_millis_cmd = millis();
+	unsigned long previous_millis_cmd = _millis();
 	int8_t        enc_dif = lcd_encoder_diff;
 	lcd_consume_click();
 	KEEPALIVE_STATE(PAUSED_FOR_USER);
 	for (;;) {
-		if (allow_timeouting && millis() - previous_millis_cmd > LCD_TIMEOUT_TO_STATUS)
+		if (allow_timeouting && _millis() - previous_millis_cmd > LCD_TIMEOUT_TO_STATUS)
 			return -1;
 		manage_heater();
 		manage_inactivity(true);
@@ -3796,7 +3796,7 @@ static void prusa_stat_printinfo()
 	SERIAL_ECHO("][TIM:");
 	if (starttime != 0)
 	{
-		SERIAL_ECHO(millis() / 1000 - starttime / 1000);
+		SERIAL_ECHO(_millis() / 1000 - starttime / 1000);
 	}
 	else
 	{
@@ -3967,10 +3967,10 @@ static void lcd_crash_mode_info()
 {
 	lcd_update_enable(true);
 	static uint32_t tim = 0;
-	if ((tim + 1000) < millis())
+	if ((tim + 1000) < _millis())
 	{
 		fputs_P(_i("\x1b[2JCrash detection can\x1b[1;0Hbe turned on only in\x1b[2;0HNormal mode"), lcdout);////MSG_CRASH_DET_ONLY_IN_NORMAL c=20 r=4
-		tim = millis();
+		tim = _millis();
 	}
     menu_back_if_clicked();
 }
@@ -3979,10 +3979,10 @@ static void lcd_crash_mode_info2()
 {
 	lcd_update_enable(true);
 	static uint32_t tim = 0;
-	if ((tim + 1000) < millis())
+	if ((tim + 1000) < _millis())
 	{
 		fputs_P(_i("\x1b[2JWARNING:\x1b[1;0HCrash detection\x1b[2;0Hdisabled in\x1b[3;0HStealth mode"), lcdout);////MSG_CRASH_DET_STEALTH_FORCE_OFF c=20 r=4
-		tim = millis();
+		tim = _millis();
 	}
     menu_back_if_clicked();
 }
@@ -3994,10 +3994,10 @@ static void lcd_filament_autoload_info()
 uint8_t nlines;
 	lcd_update_enable(true);
 	static uint32_t tim = 0;
-	if ((tim + 1000) < millis())
+	if ((tim + 1000) < _millis())
 	{
           lcd_display_message_fullscreen_nonBlocking_P(_i("Autoloading filament available only when filament sensor is turned on..."), nlines); ////MSG_AUTOLOADING_ONLY_IF_FSENS_ON c=20 r=4
-		tim = millis();
+		tim = _millis();
 	}
     menu_back_if_clicked();
 }
@@ -4007,10 +4007,10 @@ static void lcd_fsensor_fail()
 uint8_t nlines;
 	lcd_update_enable(true);
 	static uint32_t tim = 0;
-	if ((tim + 1000) < millis())
+	if ((tim + 1000) < _millis())
 	{
           lcd_display_message_fullscreen_nonBlocking_P(_i("ERROR: Filament sensor is not responding, please check connection."), nlines);////MSG_FSENS_NOT_RESPONDING c=20 r=4
-		tim = millis();
+		tim = _millis();
 	}
     menu_back_if_clicked();
 }
@@ -4231,20 +4231,20 @@ void lcd_calibrate_pinda() {
 		st_synchronize();
 
 		lcd_display_message_fullscreen_P(msg_e_cal_knob);
-		msg_millis = millis();
+		msg_millis = _millis();
 		while (!LCD_CLICKED) {
-			if (multi_screen && millis() - msg_millis > 5000) {
+			if (multi_screen && _millis() - msg_millis > 5000) {
 				if (msg_next_e_cal_knob == NULL)
 					msg_next_e_cal_knob = msg_e_cal_knob;
 					msg_next_e_cal_knob = lcd_display_message_fullscreen_P(msg_next_e_cal_knob);
-					msg_millis = millis();
+					msg_millis = _millis();
 			}
 
 			//manage_inactivity(true);
 			manage_heater();
 			if (abs(lcd_encoder_diff) >= ENCODER_PULSES_PER_STEP) {						//adjusting mark by knob rotation
 				delay_keep_alive(50);
-				//previous_millis_cmd = millis();
+				//previous_millis_cmd = _millis();
 				lcd_encoder += (lcd_encoder_diff / ENCODER_PULSES_PER_STEP);
 				lcd_encoder_diff = 0;
 				if (!planner_queue_full()) {
@@ -5640,7 +5640,7 @@ void lcd_confirm_print()
 				no_response = true; //we need confirmation by recieving PRUSA thx
 				important_status = 4;
 				saved_filament_type = filament_type;
-				NcTime = millis();
+				NcTime = _millis();
 			}
 			if (cursor_pos == 2)
 			{
@@ -5650,7 +5650,7 @@ void lcd_confirm_print()
 				no_response = true; //we need confirmation by recieving PRUSA thx
 				important_status = 5;				
 				saved_filament_type = filament_type;
-				NcTime = millis();
+				NcTime = _millis();
 			}
 		}
 
@@ -5683,7 +5683,7 @@ void lcd_resume_print()
     lcd_setstatuspgm(_T(MSG_RESUMING_PRINT));
     lcd_reset_alert_level(); //for fan speed error
     restore_print_from_ram_and_continue(0.0);
-    pause_time += (millis() - start_pause_print); //accumulate time when print is paused for correct statistics calculation
+    pause_time += (_millis() - start_pause_print); //accumulate time when print is paused for correct statistics calculation
     refresh_cmd_timeout();
     isPrintPaused = false;
 }
@@ -6076,7 +6076,7 @@ void lcd_print_stop()
 	lcd_setstatuspgm(_T(MSG_PRINT_ABORTED));
 	card.sdprinting = false;
 	card.closefile();
-	stoptime = millis();
+	stoptime = _millis();
 	unsigned long t = (stoptime - starttime - pause_time) / 1000; //time in s
 	pause_time = 0;
 	save_statistics(total_filament_used, t);
@@ -6634,7 +6634,7 @@ static bool lcd_selfcheck_pulleys(int axis)
 			return(false);
 		}
 	}
-	timeout_counter = millis() + 2500;
+	timeout_counter = _millis() + 2500;
 	endstop_triggered = false;
 	manage_inactivity(true);
 	while (!endstop_triggered) {
@@ -6656,7 +6656,7 @@ static bool lcd_selfcheck_pulleys(int axis)
 			current_position[axis] -= 1;
 			plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[3], manual_feedrate[0] / 60, active_extruder);
 			st_synchronize();
-			if (millis() > timeout_counter) {
+			if (_millis() > timeout_counter) {
 				lcd_selftest_error(8, (axis == 0) ? "X" : "Y", "");
 				return(false);
 			}
@@ -7278,10 +7278,10 @@ void lcd_printer_connected() {
 }
 
 static void lcd_send_status() {
-	if (farm_mode && no_response && ((millis() - NcTime) > (NC_TIME * 1000))) {
+	if (farm_mode && no_response && ((_millis() - NcTime) > (NC_TIME * 1000))) {
 		//send important status messages periodicaly
 		prusa_statistics(important_status, saved_filament_type);
-		NcTime = millis();
+		NcTime = _millis();
 #ifdef FARM_CONNECT_MESSAGE
 		lcd_connect_printer();
 #endif //FARM_CONNECT_MESSAGE
@@ -7326,7 +7326,7 @@ static void lcd_connect_printer() {
 void lcd_ping() { //chceck if printer is connected to monitoring when in farm mode
 	if (farm_mode) {
 		bool empty = is_buffer_empty();
-		if ((millis() - PingTime) * 0.001 > (empty ? PING_TIME : PING_TIME_LONG)) { //if commands buffer is empty use shorter time period
+		if ((_millis() - PingTime) * 0.001 > (empty ? PING_TIME : PING_TIME_LONG)) { //if commands buffer is empty use shorter time period
 																							  //if there are comamnds in buffer, some long gcodes can delay execution of ping command
 																							  //therefore longer period is used
 			printer_connected = false;
@@ -7439,7 +7439,7 @@ void menu_lcd_lcdupdate_func(void)
 		}
 	}
 #endif//CARDINSERTED
-	if (lcd_next_update_millis < millis())
+	if (lcd_next_update_millis < _millis())
 	{
 		if (abs(lcd_encoder_diff) >= ENCODER_PULSES_PER_STEP)
 		{
@@ -7471,11 +7471,10 @@ void menu_lcd_lcdupdate_func(void)
 		}
 		if (lcd_draw_update == 2) lcd_clear();
 		if (lcd_draw_update) lcd_draw_update--;
-		lcd_next_update_millis = millis() + LCD_UPDATE_INTERVAL;
+		lcd_next_update_millis = _millis() + LCD_UPDATE_INTERVAL;
 	}
 	if (!SdFatUtil::test_stack_integrity()) stack_error();
 	lcd_ping(); //check that we have received ping command if we are in farm mode
 	lcd_send_status();
 	if (lcd_commands_type == LCD_COMMAND_V2_CAL) lcd_commands();
 }
-

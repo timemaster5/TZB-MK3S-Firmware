@@ -215,7 +215,7 @@ static void temp_runaway_stop(bool isPreheat, bool isBed);
   pid_cycle=0;
   bool heating = true;
 
-  unsigned long temp_millis = millis();
+  unsigned long temp_millis = _millis();
   unsigned long t1=temp_millis;
   unsigned long t2=temp_millis;
   long t_high = 0;
@@ -231,7 +231,7 @@ static void temp_runaway_stop(bool isPreheat, bool isBed);
 #if (defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1) || \
     (defined(EXTRUDER_1_AUTO_FAN_PIN) && EXTRUDER_1_AUTO_FAN_PIN > -1) || \
     (defined(EXTRUDER_2_AUTO_FAN_PIN) && EXTRUDER_2_AUTO_FAN_PIN > -1)
-  unsigned long extruder_autofan_last_check = millis();
+  unsigned long extruder_autofan_last_check = _millis();
 #endif
 
   if ((extruder >= EXTRUDERS)
@@ -278,28 +278,28 @@ static void temp_runaway_stop(bool isPreheat, bool isBed);
       #if (defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1) || \
           (defined(EXTRUDER_1_AUTO_FAN_PIN) && EXTRUDER_1_AUTO_FAN_PIN > -1) || \
           (defined(EXTRUDER_2_AUTO_FAN_PIN) && EXTRUDER_2_AUTO_FAN_PIN > -1)
-      if(millis() - extruder_autofan_last_check > 2500) {
+      if(_millis() - extruder_autofan_last_check > 2500) {
         checkExtruderAutoFans();
-        extruder_autofan_last_check = millis();
+        extruder_autofan_last_check = _millis();
       }
       #endif
 
       if(heating == true && input > temp) {
-        if(millis() - t2 > 5000) { 
+        if(_millis() - t2 > 5000) { 
           heating=false;
           if (extruder<0)
             soft_pwm_bed = (bias - d) >> 1;
           else
             soft_pwm[extruder] = (bias - d) >> 1;
-          t1=millis();
+          t1=_millis();
           t_high=t1 - t2;
           max=temp;
         }
       }
       if(heating == false && input < temp) {
-        if(millis() - t1 > 5000) {
+        if(_millis() - t1 > 5000) {
           heating=true;
-          t2=millis();
+          t2=_millis();
           t_low=t2 - t1;
           if(pid_cycle > 0) {
             bias += (d*(t_high - t_low))/(t_low + t_high);
@@ -356,7 +356,7 @@ static void temp_runaway_stop(bool isPreheat, bool isBed);
 	  pid_cycle = 0;
       return;
     }
-    if(millis() - temp_millis > 2000) {
+    if(_millis() - temp_millis > 2000) {
       int p;
       if (extruder<0){
         p=soft_pwm_bed;       
@@ -391,9 +391,9 @@ static void temp_runaway_stop(bool isPreheat, bool isBed);
 				return;
 			}
 		}
-      temp_millis = millis();
+      temp_millis = _millis();
     }
-    if(((millis() - t1) + (millis() - t2)) > (10L*60L*1000L*2L)) {
+    if(((_millis() - t1) + (_millis() - t2)) > (10L*60L*1000L*2L)) {
       SERIAL_PROTOCOLLNPGM("PID Autotune failed! timeout");
 	  pid_tuning_finished = true;
 	  pid_cycle = 0;
@@ -457,9 +457,9 @@ void setExtruderAutoFanState(int pin, bool state)
 void countFanSpeed()
 {
 	//SERIAL_ECHOPGM("edge counter 1:"); MYSERIAL.println(fan_edge_counter[1]);
-	fan_speed[0] = (fan_edge_counter[0] * (float(250) / (millis() - extruder_autofan_last_check)));
-	fan_speed[1] = (fan_edge_counter[1] * (float(250) / (millis() - extruder_autofan_last_check)));
-	/*SERIAL_ECHOPGM("time interval: "); MYSERIAL.println(millis() - extruder_autofan_last_check);
+	fan_speed[0] = (fan_edge_counter[0] * (float(250) / (_millis() - extruder_autofan_last_check)));
+	fan_speed[1] = (fan_edge_counter[1] * (float(250) / (_millis() - extruder_autofan_last_check)));
+	/*SERIAL_ECHOPGM("time interval: "); MYSERIAL.println(_millis() - extruder_autofan_last_check);
 	SERIAL_ECHOPGM("extruder fan speed:"); MYSERIAL.print(fan_speed[0]); SERIAL_ECHOPGM("; edge counter:"); MYSERIAL.println(fan_edge_counter[0]);
 	SERIAL_ECHOPGM("print fan speed:"); MYSERIAL.print(fan_speed[1]); SERIAL_ECHOPGM("; edge counter:"); MYSERIAL.println(fan_edge_counter[1]);
 	SERIAL_ECHOLNPGM(" ");*/
@@ -683,7 +683,7 @@ void manage_heater()
     }
 
     #ifdef WATCH_TEMP_PERIOD
-    if(watchmillis[e] && millis() - watchmillis[e] > WATCH_TEMP_PERIOD)
+    if(watchmillis[e] && _millis() - watchmillis[e] > WATCH_TEMP_PERIOD)
     {
         if(degHotend(e) < watch_start_temp[e] + WATCH_TEMP_INCREASE)
         {
@@ -715,22 +715,22 @@ void manage_heater()
   #if (defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1) || \
       (defined(EXTRUDER_1_AUTO_FAN_PIN) && EXTRUDER_1_AUTO_FAN_PIN > -1) || \
       (defined(EXTRUDER_2_AUTO_FAN_PIN) && EXTRUDER_2_AUTO_FAN_PIN > -1)
-  if(millis() - extruder_autofan_last_check > 1000)  // only need to check fan state very infrequently
+  if(_millis() - extruder_autofan_last_check > 1000)  // only need to check fan state very infrequently
   {
 #if (defined(FANCHECK) && ((defined(TACH_0) && (TACH_0 >-1)) || (defined(TACH_1) && (TACH_1 > -1))))
 	countFanSpeed();
 	checkFanSpeed();
 #endif //(defined(TACH_0) && TACH_0 >-1) || (defined(TACH_1) && TACH_1 > -1)
     checkExtruderAutoFans();
-    extruder_autofan_last_check = millis();
+    extruder_autofan_last_check = _millis();
   }  
   #endif       
 #endif //DEBUG_DISABLE_FANCHECK
   
   #ifndef PIDTEMPBED
-  if(millis() - previous_millis_bed_heater < BED_CHECK_INTERVAL)
+  if(_millis() - previous_millis_bed_heater < BED_CHECK_INTERVAL)
     return;
-  previous_millis_bed_heater = millis();
+  previous_millis_bed_heater = _millis();
   #endif
 
   #if TEMP_SENSOR_BED != 0
@@ -1151,7 +1151,7 @@ void setWatch()
     if(degHotend(e) < degTargetHotend(e) - (WATCH_TEMP_INCREASE * 2))
     {
       watch_start_temp[e] = degHotend(e);
-      watchmillis[e] = millis();
+      watchmillis[e] = _millis();
     } 
   }
 #endif 
@@ -1168,7 +1168,7 @@ void temp_runaway_check(int _heater_id, float _target_temperature, float _curren
 	static int __preheat_errors[2] = { 0,0};
 		
 
-	if (millis() - temp_runaway_timer[_heater_id] > 2000)
+	if (_millis() - temp_runaway_timer[_heater_id] > 2000)
 	{
 
 #ifdef 	TEMP_RUNAWAY_BED_TIMEOUT
@@ -1186,7 +1186,7 @@ void temp_runaway_check(int _heater_id, float _target_temperature, float _curren
           }
 #endif
 
-		temp_runaway_timer[_heater_id] = millis();
+		temp_runaway_timer[_heater_id] = _millis();
 		if (_output == 0)
 		{
 			temp_runaway_check_active = false;
@@ -1452,10 +1452,10 @@ int max6675_temp = 2000;
 
 int read_max6675()
 {
-  if (millis() - max6675_previous_millis < MAX6675_HEAT_INTERVAL) 
+  if (_millis() - max6675_previous_millis < MAX6675_HEAT_INTERVAL) 
     return max6675_temp;
   
-  max6675_previous_millis = millis();
+  max6675_previous_millis = _millis();
   max6675_temp = 0;
     
   #ifdef	PRR
@@ -1991,5 +1991,3 @@ float unscalePID_d(float d)
 }
 
 #endif //PIDTEMP
-
-

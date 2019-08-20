@@ -2,6 +2,8 @@
 .project
 .cproject
 .DS_Store
+.pio
+.vscode
 Debug
 Firmware/Doc
 /Firmware/.vs/Firmware/v14

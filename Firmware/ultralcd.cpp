@@ -9,8 +9,8 @@
 #include "temperature.h"
 #include "stepper.h"
 #include "ConfigurationStore.h"
+#include "printers.h"
 #include <string.h>
-
 
 #include "lcd.h"
 #include "menu.h"
@@ -19,7 +19,6 @@
 #include "mesh_bed_leveling.h"
 #include "mesh_bed_calibration.h"
 
-//#include "Configuration.h"
 #include "cmdqueue.h"
 
 #include "SdFatUtil.h"
@@ -34,10 +33,9 @@
 #endif //TMC2130
 
 #include "sound.h"
-
 #include "mmu.h"
-
 #include "static_assert.h"
+#include "io_atmega2560.h"
 
 
 extern bool fans_check_enabled;
@@ -195,6 +193,9 @@ static void menu_action_sddirectory(const char* filename);
 
 #define ENCODER_FEEDRATE_DEADZONE 10
 
+#define STATE_NA 255
+#define STATE_OFF 0
+#define STATE_ON 1
 
 /*
 #define MENU_ITEM(type, label, args...) do { \
@@ -2181,6 +2182,7 @@ static void lcd_support_menu()
   MENU_ITEM_BACK_P(STR_SEPARATOR);
   MENU_ITEM_SUBMENU_P(_i("XYZ cal. details"), lcd_menu_xyz_y_min);////MSG_XYZ_DETAILS c=19 r=1
   MENU_ITEM_SUBMENU_P(_i("Extruder info"), lcd_menu_extruder_info);////MSG_INFO_EXTRUDER c=15 r=1
+  MENU_ITEM_SUBMENU_P(_i("Sensor info"), lcd_menu_show_sensors_state);////MSG_INFO_SENSORS c=18 r=1
 
 #ifdef TMC2130
   MENU_ITEM_SUBMENU_P(_i("Belt status"), lcd_menu_belt_status);////MSG_MENU_BELT_STATUS c=15 r=1
@@ -3592,7 +3594,59 @@ if(LCD_CLICKED)
 }
 #endif // defined TMC2130
 
+static void lcd_print_state(uint8_t state)
+{
+  switch (state) {
+    case STATE_ON:
+      lcd_puts_P(_i("  1"));
+    break;
+    case STATE_OFF:
+      lcd_puts_P(_i("  0"));
+    break;
+    default: 
+      lcd_puts_P(_i("N/A"));
+    break;
+  }
+}
 
+static void lcd_show_sensors_state()
+{
+  //0: N/A; 1: OFF; 2: ON
+  uint8_t pinda_state = STATE_NA;
+  uint8_t finda_state = STATE_NA;
+  uint8_t idler_state = STATE_NA;
+
+  pinda_state = READ(Z_MIN_PIN);
+  if (mmu_enabled) {
+    finda_state = mmu_finda;
+  }
+  if (ir_sensor_detected) {
+    idler_state = !PIN_GET(IR_SENSOR_PIN);
+  }
+  lcd_puts_at_P(0, 0, _i("Sensor state"));
+  lcd_puts_at_P(1, 1, _i("PINDA:"));
+  lcd_set_cursor(LCD_WIDTH - 4, 1);
+  lcd_print_state(pinda_state);
+  
+  lcd_puts_at_P(1, 2, _i("FINDA:"));
+  lcd_set_cursor(LCD_WIDTH - 4, 2);
+  lcd_print_state(finda_state);
+  
+  lcd_puts_at_P(1, 3, _i("IR:"));
+  lcd_set_cursor(LCD_WIDTH - 4, 3);
+  lcd_print_state(idler_state);
+}
+
+void lcd_menu_show_sensors_state()                // NOT static due to using inside "Marlin_main" module ("manage_inactivity()")
+{
+  lcd_timeoutToStatus.stop();
+  lcd_show_sensors_state();
+  if(LCD_CLICKED)
+  {
+    lcd_timeoutToStatus.start();
+    menu_back();
+  }
+}
 
 void prusa_statistics(int _message, uint8_t _fil_nr) {
 #ifdef DEBUG_DISABLE_PRUSA_STATISTICS

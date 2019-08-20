@@ -3069,6 +3069,11 @@ static void gcode_M600(bool automatic, float x_position, float y_position, float
   sprintf_P(cmd, PSTR("M220 S%i"), feedmultiplyBckp);
   enquecommand(cmd);
 
+  #ifdef IR_SENSOR
+  //this will set fsensor_watch_autoload to correct value and prevent possible M701 gcode enqueuing when M600 is finished
+  fsensor_check_autoload();
+#endif //IR_SENSOR
+
   lcd_setstatuspgm(_T(WELCOME_MSG));
   custom_message_type = CUSTOM_MSG_TYPE_STATUS;
 }
@@ -7489,9 +7494,17 @@ static void handleSafetyTimer()
 
 void manage_inactivity(bool ignore_stepper_queue/*=false*/) //default argument set in Marlin.h
 {
+  bool bInhibitFlag;
 #ifdef FILAMENT_SENSOR
   if (mmu_enabled == false)
   {
+    //-//    if (mcode_in_progress != 600) //M600 not in progress
+#ifdef PAT9125
+    bInhibitFlag = (menu_menu == lcd_menu_extruder_info); // Support::ExtruderInfo menu active
+#endif // PAT9125
+#ifdef IR_SENSOR
+    bInhibitFlag = (menu_menu == lcd_menu_show_sensors_state); // Support::SensorInfo menu active
+#endif // IR_SENSOR
     if (mcode_in_progress != 600) //M600 not in progress
     {
       if (!moves_planned() && !IS_SD_PRINTING && !is_usb_printing && (lcd_commands_type != LCD_COMMAND_V2_CAL) && !wizard_active)

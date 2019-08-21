@@ -63,7 +63,7 @@ uint8_t mmu_filament_types[5] = {0, 0, 0, 0, 0};
 void mmu_unload_synced(uint16_t _filament_type_speed);
 
 //idler ir sensor
-static uint8_t mmu_idl_sens = 0;
+// static uint8_t mmu_idl_sens = 0; // Unused presently in TZB Code
 bool ir_sensor_detected = false;
 
 //if IR_SENSOR defined, always returns true

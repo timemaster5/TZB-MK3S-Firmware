@@ -724,9 +724,8 @@ void manage_heater()
   
     float_target_temperature_bed = target_temperature_bed;
     bedPID.Compute();
-    soft_pwm_bed = pid_error_bed;
 	  if(((current_temperature_bed > BED_MINTEMP) || (current_temperature_ambient < MINTEMP_MINAMBIENT)) && (current_temperature_bed < BED_MAXTEMP))
-	    soft_pwm_bed = (int)pid_output >> 1;
+	    soft_pwm_bed = pid_error_bed;
 	  else soft_pwm_bed = 0;
     OCR0B = soft_pwm_bed;
 
@@ -966,10 +965,12 @@ void tp_init()
 
   adc_init();
 
-  // Use timer0 for temperature measurement
+  timer0_init();
+  // Use timer2 for temperature measurement
   // Interleave temperature interrupt with millies interrupt
-  OCR0B = 0; // 128;
-  TIMSK0 |= (1<<OCIE0B);
+  timer2_init();
+  OCR2B = 128;
+  TIMSK2 |= (1<<OCIE2B);
   
   // Wait for temperature measurement to settle
   delay(250);
@@ -1278,7 +1279,7 @@ void disable_heater()
     target_temperature_bed=0;
     soft_pwm_bed=0;
     #if defined(HEATER_BED_PIN) && HEATER_BED_PIN > -1  
-      WRITE(HEATER_BED_PIN,LOW);
+      OCR0B = 0; // DISABLE PWM on bed pin.   // WRITE(HEATER_BED_PIN,LOW);
     #endif
   #endif 
 }
@@ -1330,7 +1331,7 @@ void min_temp_error(uint8_t e) {
 
 void bed_max_temp_error(void) {
 #if HEATER_BED_PIN > -1
-  WRITE(HEATER_BED_PIN, 0);
+  OCR0B = 0; // CLEAR PWM on bed pin. // WRITE(HEATER_BED_PIN, 0);
 #endif
   if(IsStopped() == false) {
     SERIAL_ERROR_START;
@@ -1349,7 +1350,8 @@ void bed_min_temp_error(void) {
 #endif
 //if (current_temperature_ambient < MINTEMP_MINAMBIENT) return;
 #if HEATER_BED_PIN > -1
-    WRITE(HEATER_BED_PIN, 0);
+    current_temperature_bed = 0;
+    OCR0B = 0; // DISABLE PWM on bed pin. // WRITE(HEATER_BED_PIN, 0);
 #endif
     if(IsStopped() == false) {
         SERIAL_ERROR_START;
@@ -1441,8 +1443,8 @@ void adc_ready(void) //callback from adc when sampling finished
 } // extern "C"
 
 
-// Timer 0 is shared with millies
-ISR(TIMER0_COMPB_vect)
+// Timer2 (originaly timer0) is shared with millies
+ISR(TIMER2_COMPB_vect)
 {
 	static bool _lock = false;
 	if (_lock) return;
@@ -1478,13 +1480,11 @@ ISR(TIMER0_COMPB_vect)
   static unsigned char state_timer_heater_2 = 0;
 #endif 
 #endif
-#if HEATER_BED_PIN > -1
-  static unsigned char soft_pwm_b;
 #ifdef SLOW_PWM_HEATERS
   static unsigned char state_heater_b = 0;
   static unsigned char state_timer_heater_b = 0;
 #endif 
-#endif
+//#endif
   
 #if defined(FILWIDTH_PIN) &&(FILWIDTH_PIN > -1)
   static unsigned long raw_filwidth_value = 0;  //added for filament width sensor
@@ -1512,10 +1512,6 @@ ISR(TIMER0_COMPB_vect)
     soft_pwm_2 = soft_pwm[2];
     if(soft_pwm_2 > 0) WRITE(HEATER_2_PIN,1); else WRITE(HEATER_2_PIN,0);
 #endif
-#if defined(HEATER_BED_PIN) && HEATER_BED_PIN > -1
-    soft_pwm_b = soft_pwm_bed;
-    if(soft_pwm_b > 0) WRITE(HEATER_BED_PIN,1); else WRITE(HEATER_BED_PIN,0);
-#endif
 #ifdef FAN_SOFT_PWM
     soft_pwm_fan = fanSpeedSoftPwm / 2;
     if(soft_pwm_fan > 0) WRITE(FAN_PIN,1); else WRITE(FAN_PIN,0);
@@ -1534,9 +1530,6 @@ ISR(TIMER0_COMPB_vect)
 #endif
 #if EXTRUDERS > 2
   if(soft_pwm_2 < pwm_count) WRITE(HEATER_2_PIN,0);
-#endif
-#if defined(HEATER_BED_PIN) && HEATER_BED_PIN > -1
-  if(soft_pwm_b < pwm_count) WRITE(HEATER_BED_PIN,0);
 #endif
 #ifdef FAN_SOFT_PWM
   if(soft_pwm_fan < pwm_count) WRITE(FAN_PIN,0);
@@ -1636,32 +1629,6 @@ ISR(TIMER0_COMPB_vect)
       }
     }
 #endif
-    
-#if defined(HEATER_BED_PIN) && HEATER_BED_PIN > -1
-    // BED
-    soft_pwm_b = soft_pwm_bed;
-    if (soft_pwm_b > 0) {
-      // turn ON heather only if the minimum time is up 
-      if (state_timer_heater_b == 0) { 
-	// if change state set timer 
-	if (state_heater_b == 0) {
-	  state_timer_heater_b = MIN_STATE_TIME;
-	}
-	state_heater_b = 1;
-	WRITE(HEATER_BED_PIN, 1);
-      }
-    } else {
-      // turn OFF heather only if the minimum time is up 
-      if (state_timer_heater_b == 0) {
-	// if change state set timer 
-	if (state_heater_b == 1) {
-	  state_timer_heater_b = MIN_STATE_TIME;
-	}
-	state_heater_b = 0;
-	WRITE(HEATER_BED_PIN, 0);
-      }
-    }
-#endif
   } // if (slow_pwm_count == 0)
   
   // EXTRUDER 0 
@@ -1708,23 +1675,7 @@ ISR(TIMER0_COMPB_vect)
       WRITE(HEATER_2_PIN, 0);
     }
   }
-#endif
-  
-#if defined(HEATER_BED_PIN) && HEATER_BED_PIN > -1
-  // BED
-  if (soft_pwm_b < slow_pwm_count) {
-    // turn OFF heather only if the minimum time is up 
-    if (state_timer_heater_b == 0) { 
-      // if change state set timer 
-      if (state_heater_b == 1) {
-	state_timer_heater_b = MIN_STATE_TIME;
-      }
-      state_heater_b = 0;
-      WRITE(HEATER_BED_PIN, 0);
-    }
-  }
-#endif
-  
+#endif  
 #ifdef FAN_SOFT_PWM
   if (pwm_count == 0){
     soft_pwm_fan = fanSpeedSoftPwm / 2;

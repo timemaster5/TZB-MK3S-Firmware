@@ -7,7 +7,8 @@
 #define SYSTEM_TIMER_2
 
 #ifdef SYSTEM_TIMER_2
-#include "timer02.h"
+#include "timer0.h"
+#include "timer2.h"
 #define _millis millis2
 #define _micros micros2
 #define _delay delay2

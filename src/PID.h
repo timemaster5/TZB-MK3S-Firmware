@@ -17,11 +17,11 @@ class PID
   #define P_ON_E 1
 
   //commonly used functions **************************************************************************
-    PID(float*, float*, float*,        // * constructor.  links the PID to the Input, Output, and 
+    PID(float*, float*, int*,        // * constructor.  links the PID to the Input, Output, and 
         float, float, float, int, int);//   Setpoint.  Initial tuning parameters are also set here.
                                           //   (overload for specifying proportional mode)
 
-    PID(float*, float*, float*,        // * constructor.  links the PID to the Input, Output, and 
+    PID(float*, float*, int*,        // * constructor.  links the PID to the Input, Output, and 
         float, float, float, int);     //   Setpoint.  Initial tuning parameters are also set here
 	
     void SetMode(int Mode);               // * sets PID to either Manual (0) or Auto (non-0)
@@ -68,15 +68,15 @@ class PID
 	float dispKd;				//
     
 	float kp;                  // * (P)roportional Tuning Parameter
-    float ki;                  // * (I)ntegral Tuning Parameter
-    float kd;                  // * (D)erivative Tuning Parameter
+  float ki;                  // * (I)ntegral Tuning Parameter
+  float kd;                  // * (D)erivative Tuning Parameter
 
 	int controllerDirection;
 	int pOn;
 
-    float *myInput;              // * Pointers to the Input, Output, and Setpoint variables
-    float *myOutput;             //   This creates a hard link between the variables and the 
-    float *mySetpoint;           //   PID, freeing the user from having to constantly tell us
+  float *myInput;              // * Pointers to the Input, Output, and Setpoint variables
+  float *myOutput;             //   This creates a hard link between the variables and the 
+  int *mySetpoint;           //   PID, freeing the user from having to constantly tell us
                                   //   what these values are.  with pointers we'll just know.
 			  
 	unsigned long lastTime;

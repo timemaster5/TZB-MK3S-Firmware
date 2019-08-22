@@ -121,9 +121,8 @@ static volatile bool temp_meas_ready = false;
   static float pid_error_bed;
   static float temp_iState_min_bed;
   static float temp_iState_max_bed;
-  static float float_target_temperature_bed = target_temperature_bed;
 
-  PID bedPID(&current_temperature_bed, &pid_error_bed, &float_target_temperature_bed, DEFAULT_bedKp, DEFAULT_bedKi, DEFAULT_bedKd, DIRECT);
+  PID bedPID(&current_temperature_bed, &pid_error_bed, &target_temperature_bed, DEFAULT_bedKp, DEFAULT_bedKi, DEFAULT_bedKd, DIRECT);
 
   static unsigned char soft_pwm[EXTRUDERS];
 
@@ -722,12 +721,12 @@ void manage_heater()
   #endif       
 #endif //DEBUG_DISABLE_FANCHECK
   
-    float_target_temperature_bed = target_temperature_bed;
     bedPID.Compute();
 	  if(((current_temperature_bed > BED_MINTEMP) || (current_temperature_ambient < MINTEMP_MINAMBIENT)) && (current_temperature_bed < BED_MAXTEMP))
 	    soft_pwm_bed = pid_error_bed;
 	  else soft_pwm_bed = 0;
-    OCR0B = soft_pwm_bed;
+    printf_P(PSTR("softPWMBed=%d, PWMOut=%f.2, BEDTar=%d, BEDCur=%f.2\n"), (int)soft_pwm_bed, pid_error_bed, target_temperature_bed, current_temperature_bed);
+    OCR0B = (int)soft_pwm_bed;
 
 #ifdef HOST_KEEPALIVE_FEATURE
   host_keepalive();
@@ -966,6 +965,8 @@ void tp_init()
   adc_init();
 
   timer0_init();
+  bedPID.SetMode(AUTOMATIC);
+
   // Use timer2 for temperature measurement
   // Interleave temperature interrupt with millies interrupt
   timer2_init();
@@ -1331,6 +1332,7 @@ void min_temp_error(uint8_t e) {
 
 void bed_max_temp_error(void) {
 #if HEATER_BED_PIN > -1
+  target_temperature_bed = 0;
   OCR0B = 0; // CLEAR PWM on bed pin. // WRITE(HEATER_BED_PIN, 0);
 #endif
   if(IsStopped() == false) {
@@ -1350,7 +1352,7 @@ void bed_min_temp_error(void) {
 #endif
 //if (current_temperature_ambient < MINTEMP_MINAMBIENT) return;
 #if HEATER_BED_PIN > -1
-    current_temperature_bed = 0;
+    target_temperature_bed = 0;
     OCR0B = 0; // DISABLE PWM on bed pin. // WRITE(HEATER_BED_PIN, 0);
 #endif
     if(IsStopped() == false) {

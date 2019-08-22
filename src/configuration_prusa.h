@@ -1,5 +1,6 @@
 #ifndef CONFIGURATION_PRUSA_H
 #define CONFIGURATION_PRUSA_H
+asm(".global _printf_float");
 
 #include <limits.h>
 #include "printers.h"

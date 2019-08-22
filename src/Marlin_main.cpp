@@ -6404,7 +6404,8 @@ Sigma_Exit:
               temp = 70;
             if (code_seen('S')) temp = code_value();
             if (code_seen('C')) c = code_value();
-            PID_autotune(temp, e, c);
+            if (e >= 0) PID_autotune(temp, e, c);
+            else PIDBED_autotune(temp, c);
           }
           break;
         case 400: // M400 finish all moves

@@ -49,6 +49,7 @@ namespace
 
 bool mmu_enabled = false;
 bool mmu_ready = false;
+bool mmu_busy = false;
 bool isMMUPrintPaused = false;
 bool mmuFSensorLoading = false;
 bool mmuIdleFilamentTesting = true;
@@ -124,14 +125,16 @@ void mmu_loop(void)
   unsigned char tData3 = rxData3;
   int16_t  tCSUM = ((rxCSUM1 << 8) | rxCSUM2);
   bool     confPayload = confirmedPayload;
-  if ((txRESEND) || (pendingACK && ((startTXTimeout + TXTimeout) < _millis()))) {
-    // Check if MMU Busy, if so then come back soon to process comms.
-    if (!(tData1 == 'B' && tData2 == 'S' && tData3 == 'Y')) {
-      txRESEND         = false;
-      confirmedPayload = false;
-      startRxFlag      = false;
-      uart2_txPayload(lastTxPayload);
-    }
+
+  // Check if MMU Busy, if so then come back soon to process comms.
+  if (tData1 == 'F' && tData2 == 'U' && tData3 == 'N') mmu_busy = false;
+  if (tData1 == 'F' && tData2 == 'U' && tData3 == 'Y') mmu_busy = true;
+  if (mmu_busy) return;
+  if (((txRESEND) || (pendingACK && ((startTXTimeout + TXTimeout) < _millis()))) && !mmu_busy) {
+    txRESEND         = false;
+    confirmedPayload = false;
+    startRxFlag      = false;
+    uart2_txPayload(lastTxPayload);
     return;
   }
 #ifdef MMU_DEBUG

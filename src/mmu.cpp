@@ -70,27 +70,7 @@ bool ir_sensor_detected = false;
 //otherwise check for ir sensor and returns true if idler IR sensor was detected, otherwise returns false
 bool check_for_ir_sensor() 
 {
-#ifdef IR_SENSOR
   return true;
-#else //IR_SENSOR
-
-  bool detected = false;
-  //if IR_SENSOR_PIN input is low and pat9125sensor is not present we detected idler sensor
-  if ((PIN_GET(IR_SENSOR_PIN) == 0) 
-#ifdef PAT9125
-    && fsensor_not_responding
-#endif //PAT9125
-  ) 
-  {   
-    detected = true;
-    //printf_P(PSTR("Idler IR sensor detected\n"));
-  }
-  else
-  {
-    //printf_P(PSTR("Idler IR sensor not detected\n"));
-  }
-  return detected;
-#endif //IR_SENSOR
 }
 
 static S mmu_state = S::Disabled; //int8_t mmu_state = 0;
@@ -145,10 +125,13 @@ void mmu_loop(void)
   int16_t  tCSUM = ((rxCSUM1 << 8) | rxCSUM2);
   bool     confPayload = confirmedPayload;
   if ((txRESEND) || (pendingACK && ((startTXTimeout + TXTimeout) < _millis()))) {
-    txRESEND         = false;
-    confirmedPayload = false;
-    startRxFlag      = false;
-    uart2_txPayload(lastTxPayload);
+    // Check if MMU Busy, if so then come back soon to process comms.
+    if (!(tData1 == 'B' && tData2 == 'S' && tData3 == 'Y')) {
+      txRESEND         = false;
+      confirmedPayload = false;
+      startRxFlag      = false;
+      uart2_txPayload(lastTxPayload);
+    }
     return;
   }
 #ifdef MMU_DEBUG

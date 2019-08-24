@@ -37,8 +37,6 @@
 #include "Sd2PinMap.h"
 
 #include <avr/wdt.h>
-#include "PID.h"
-#include "PID_AutoTune.h"
 #include "adc.h"
 #include "ConfigurationStore.h"
 
@@ -77,6 +75,8 @@ float redundant_temperature = 0.0;
 
 #ifdef PIDTEMP
 float _Kp, _Ki, _Kd;
+float _BedKp = DEFAULT_bedKp, _BedKi = DEFAULT_bedKi, _BedKd = DEFAULT_bedKd;
+unsigned long timeout;
 int pid_cycle, pid_number_of_cycles;
 bool pid_tuning_finished = false;
 #ifdef PID_ADD_EXTRUSION_RATE
@@ -106,9 +106,6 @@ static float temp_dState[EXTRUDERS] = {0};
 static float pTerm[EXTRUDERS];
 static float iTerm[EXTRUDERS];
 static float dTerm[EXTRUDERS];
-static float pTermBed = DEFAULT_bedKp;
-static float iTermBed = DEFAULT_bedKi;
-static float dTermBed = DEFAULT_bedKd;
 //int output;
 static float pid_error[EXTRUDERS];
 static float temp_iState_min[EXTRUDERS];
@@ -120,8 +117,8 @@ static float pid_error_bed;
 static float temp_iState_min_bed;
 static float temp_iState_max_bed;
 
-PID bedPID(&current_temperature_bed, &pid_error_bed, &target_temperature_bed, pTermBed, iTermBed, dTermBed, DIRECT);
-PID_ATune bedPIDAutotune(&current_temperature_bed, &pid_error_bed);
+PID bedPID(&current_temperature_bed, &pid_error_bed, &target_temperature_bed, _BedKp, _BedKi, _BedKd, DIRECT);
+PID_ATune bedPIDAutotune(&current_temperature_bed, &pid_error_bed, &target_temperature_bed);
 
 static unsigned char soft_pwm[EXTRUDERS];
 
@@ -400,48 +397,59 @@ void PIDBED_autotune(float temp, int ncycles)
 {
   float temp_current, kp, ki, kd;
   bool tuning = true, waiting = false;
-  target_temperature_bed = temp;
 
   SERIAL_ECHOLN("PID Autotune start");
   disable_heater(); // switch off all heaters.
 
-  //Set the output to the desired starting frequency.
-  pid_error_bed=PID_MAX;
-  bedPIDAutotune.SetNoiseBand(1);
-  bedPIDAutotune.SetOutputStep(2.55);
-  bedPIDAutotune.SetLookbackSec(20);
-  for (int i=0; i < ncycles; i++)
+  for (int i = 0; i < ncycles; i++)
   {
-    while (tuning)
+    while ((current_temperature_bed > (temp - 20)) && target_temperature_bed == 0.0)
     {
-  #ifdef WATCHDOG
+#ifdef WATCHDOG
       wdt_reset();
-  #endif //WATCHDOG
-      byte val = (bedPIDAutotune.Runtime());
-      if (val!=0) tuning = false;
-      if (current_temperature_bed > (temp / 3)) {
-        if (!waiting) {
+#endif //WATCHDOG
+      if (temp_meas_ready == true)
+      {
+        updateTemperaturesFromRawValues();
+        if (!waiting)
+        {
           SERIAL_PROTOCOLPGM("Waiting for bed to cool down...");
           waiting = true;
         }
-      } else {
-        waiting = false;
-        if (tuning) {
-          bedPID.Compute();
-          OCR0B = pid_error_bed;
-          SERIAL_PROTOCOLPGM("T:");
-          SERIAL_PROTOCOL(current_temperature_bed);
-          SERIAL_PROTOCOLPGM(" @:");
-          SERIAL_PROTOCOLLN(pid_error_bed);
-        }
-        if (current_temperature_bed > (temp + 20)) {
-          SERIAL_PROTOCOLLNPGM("PID Autotune failed! Temperature too high");
-          OCR0B = 0;
-          target_temperature_bed = 0;
-          return;
-        }
         lcd_update(0);
       }
+    }
+    //Set the output to the desired starting frequency.
+    waiting = false;
+    target_temperature_bed = temp;
+    pid_error_bed = MAX_BED_POWER/2;
+    bedPIDAutotune.SetNoiseBand(0.5);
+    bedPIDAutotune.SetOutputStep(60);
+    bedPIDAutotune.SetLookbackSec(5);
+    while (tuning)
+    {
+#ifdef WATCHDOG
+      wdt_reset();
+#endif //WATCHDOG
+      if (temp_meas_ready == true)
+      {
+        updateTemperaturesFromRawValues();
+        byte val = (bedPIDAutotune.Runtime());
+        if (val != 0) tuning = false;
+        if ((int)pid_error_bed > 255) soft_pwm_bed = 255;
+        else if ((int)pid_error_bed < 0) soft_pwm_bed = 0;
+        else soft_pwm_bed = pid_error_bed;
+        OCR0B = (int)soft_pwm_bed;
+      }
+      lcd_update(0);
+    }
+    if (current_temperature_bed > (temp + 20))
+    {
+      SERIAL_PROTOCOLLNPGM("PID Autotune failed! Temperature too high");
+      OCR0B = 0;
+      target_temperature_bed = 0;
+      bedPIDAutotune.Cancel();
+      return;
     }
     OCR0B = 0;
     target_temperature_bed = 0;
@@ -453,7 +461,7 @@ void PIDBED_autotune(float temp, int ncycles)
     SERIAL_PROTOCOLLNPGM("Load with M304 D<> I<> P<>");
     SERIAL_PROTOCOLLNPGM("then save with M500 gcodes.");
     SERIAL_PROTOCOLLNPGM(" Cycle: ");
-    SERIAL_PROTOCOLLN(i+1);
+    SERIAL_PROTOCOLLN(i + 1);
     SERIAL_PROTOCOLPGM(" Kp: ");
     SERIAL_PROTOCOLLN(kp);
     SERIAL_PROTOCOLPGM(" Ki: ");
@@ -813,12 +821,15 @@ void manage_heater()
 
   bedPID.Compute();
   if (((current_temperature_bed > BED_MINTEMP) || (current_temperature_ambient < MINTEMP_MINAMBIENT)) && (current_temperature_bed < BED_MAXTEMP))
-    soft_pwm_bed = pid_error_bed;
+    soft_pwm_bed = (int)pid_error_bed;
   else
     soft_pwm_bed = 0;
-  printf_P(PSTR("softPWMBed=%d, PWMOut=%f.2, BEDTar=%d, BEDCur=%f.2\n"), (int)soft_pwm_bed, pid_error_bed, target_temperature_bed, current_temperature_bed);
+  if ((timeout + 5000) < _millis())
+  {
+    printf_P(PSTR("BedPWM=%d, BEDTar=%d, BEDCur=%d\n"), (int)soft_pwm_bed, target_temperature_bed, (int)current_temperature_bed);
+    timeout = _millis();
+  }
   OCR0B = (int)soft_pwm_bed;
-
 #ifdef HOST_KEEPALIVE_FEATURE
   host_keepalive();
 #endif

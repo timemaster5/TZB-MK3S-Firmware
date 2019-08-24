@@ -2,17 +2,17 @@
 #include <PID_AutoTune.h>
 
 
-PID_ATune::PID_ATune(float* Input, float* Output)
+PID_ATune::PID_ATune(float* Input, float* Output, int* Setpoint)
 {
 	input = Input;
 	output = Output;
-	controlType =0 ; //default to PI
+	setpoint = Setpoint;
+	controlType = 1; // PID
 	noiseBand = 0.5;
 	running = false;
 	oStep = 30;
 	SetLookbackSec(10);
 	lastTime = millis();
-	
 }
 
 
@@ -44,7 +44,7 @@ int PID_ATune::Runtime()
 		justchanged=false;
 		absMax=refVal;
 		absMin=refVal;
-		setpoint = refVal;
+		//setpoint = refVal;
 		running = true;
 		outputStart = *output;
 		*output = outputStart+oStep;
@@ -57,9 +57,13 @@ int PID_ATune::Runtime()
 	
 	//oscillate the output base on the input's relation to the setpoint
 	
-	if(refVal>setpoint+noiseBand) *output = outputStart-oStep;
-	else if (refVal<setpoint-noiseBand) *output = outputStart+oStep;
-	
+	if ((refVal>*setpoint+noiseBand) && *output >= 0) *output = *output-oStep;
+	else *output = 0;
+	if ((refVal<*setpoint-noiseBand) && *output <= 255) *output = *output+oStep;
+	else *output = 255;
+	//if(refVal>*setpoint+noiseBand) *output = outputStart-oStep;
+	//else if (refVal<*setpoint-noiseBand) *output = outputStart+oStep;
+	printf_P(PSTR("PID Autotune OUT=%d, IN=%d\n"), (int)*output, (int)*input);
 	
   //bool isMax=true, isMin=true;
   isMax=true;isMin=true;
@@ -108,7 +112,7 @@ int PID_ATune::Runtime()
     float avgSeparation = (abs(peaks[peakCount-1]-peaks[peakCount-2])+abs(peaks[peakCount-2]-peaks[peakCount-3]))/2;
     if( avgSeparation < 0.05*(absMax-absMin))
     {
-		FinishUp();
+	  FinishUp();
       running = false;
 	  return 1;
 	 

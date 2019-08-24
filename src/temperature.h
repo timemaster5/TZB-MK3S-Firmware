@@ -21,6 +21,8 @@
 #ifndef temperature_h
 #define temperature_h 
 
+#include "PID.h"
+#include "PID_AutoTune.h"
 #include "Marlin.h"
 #include "planner.h"
 #ifdef PID_ADD_EXTRUSION_RATE
@@ -38,6 +40,7 @@ void manage_heater(); //it is critical that this is called periodically.
 // do not use these routines and variables outside of temperature.cpp
 extern int target_temperature[EXTRUDERS];  
 extern float current_temperature[EXTRUDERS];
+extern PID bedPID;
 #ifdef SHOW_TEMP_ADC_VALUES
   extern int current_temperature_raw[EXTRUDERS];
   extern int current_temperature_bed_raw;

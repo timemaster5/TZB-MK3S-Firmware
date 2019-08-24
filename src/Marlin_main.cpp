@@ -983,8 +983,6 @@ void list_sec_lang_from_external_flash()
 // are initialized by the main() routine provided by the Arduino framework.
 void setup()
 {
-  mmu_init();
-
   ultralcd_init();
 
   spi_init();
@@ -1607,7 +1605,7 @@ void setup()
 #ifdef WATCHDOG
   wdt_enable(WDTO_4S);
 #endif //WATCHDOG
-
+mmu_init();
 }
 
 
@@ -6341,6 +6339,7 @@ Sigma_Exit:
             if (code_seen('P')) cs.bedKp = code_value();
             if (code_seen('I')) cs.bedKi = scalePID_i(code_value());
             if (code_seen('D')) cs.bedKd = scalePID_d(code_value());
+            bedPID.SetTunings(cs.bedKp, cs.bedKi, cs.bedKd);
 
             updatePID();
             SERIAL_PROTOCOLRPGM(MSG_OK);

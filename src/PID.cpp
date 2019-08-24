@@ -12,7 +12,7 @@
  *    The parameters specified here are those for for which we can't set up
  *    reliable defaults, so we need to have the user set them.
  ***************************************************************************/
-PID::PID(float *Input, float *Output, int *Setpoint,
+PID::PID(float* Input, float* Output, int* Setpoint,
         float Kp, float Ki, float Kd, int POn, int ControllerDirection)
 {
     myOutput = Output;
@@ -36,7 +36,7 @@ PID::PID(float *Input, float *Output, int *Setpoint,
  *    to use Proportional on Error without explicitly saying so
  ***************************************************************************/
 
-PID::PID(float *Input, float *Output, int *Setpoint,
+PID::PID(float* Input, float* Output, int* Setpoint,
         float Kp, float Ki, float Kd, int ControllerDirection)
     :PID::PID(Input, Output, Setpoint, Kp, Ki, Kd, P_ON_E, ControllerDirection)
 {

@@ -26,14 +26,13 @@
 #define MMU_CMD_TIMEOUT 300000ul //5min timeout for mmu commands (except P0)
 
 #ifdef MMU_HWRESET
-#define MMU_RST_PIN 76
 #endif //MMU_HWRESET
 
 namespace
 {  // MMU2S States
   enum class S : uint_least8_t
   {
-    SetMode1, // = -6,
+    SetModeNormal, // = -6,
     FindaInit, // = -5,
     GetActExt, // = -4,
     GetBN, // = -3,
@@ -49,7 +48,6 @@ namespace
 
 bool mmu_enabled = false;
 bool mmu_ready = false;
-bool mmu_busy = false;
 bool isMMUPrintPaused = false;
 bool mmuFSensorLoading = false;
 bool mmuIdleFilamentTesting = true;
@@ -126,11 +124,7 @@ void mmu_loop(void)
   int16_t  tCSUM = ((rxCSUM1 << 8) | rxCSUM2);
   bool     confPayload = confirmedPayload;
 
-  // Check if MMU Busy, if so then come back soon to process comms.
-  if (tData1 == 'F' && tData2 == 'U' && tData3 == 'N') mmu_busy = false;
-  if (tData1 == 'F' && tData2 == 'U' && tData3 == 'Y') mmu_busy = true;
-  if (mmu_busy) return;
-  if (((txRESEND) || (pendingACK && ((startTXTimeout + TXTimeout) < _millis()))) && !mmu_busy) {
+  if ((txRESEND) || (pendingACK && ((startTXTimeout + TXTimeout) < _millis()))) {
     txRESEND         = false;
     confirmedPayload = false;
     startRxFlag      = false;
@@ -254,7 +248,7 @@ void mmu_loop(void)
         lcd_clear();                       //********************
         lcd_set_cursor(0, 0); lcd_puts_P(_i("L:   Save & Exit    "));
         lcd_set_cursor(0, 1); lcd_puts_P(_i("M:BowLen Load2Check "));
-        lcd_set_cursor(0, 2); lcd_puts_P(_i("R:Set BondTech Steps"));
+        lcd_set_cursor(0, 2); lcd_puts_P(_i("                    ")); //R:Set BondTech Steps"));
         lcd_set_cursor(0, 3); lcd_puts_P(_i("Current mm: "));
         lcd_set_cursor(12, 3); lcd_print((tData2 << 8) | (tData3));
         mmu_last_response = _millis(); // Update last response counter
@@ -315,8 +309,8 @@ void mmu_loop(void)
 #ifdef MMU_DEBUG
         puts_P(PSTR("MK3 => MMU 'M1'"));
 #endif //MMU_DEBUG
-        uart2_txPayload((unsigned char*)"M1-");
-        mmu_state = S::SetMode1;
+        uart2_txPayload((unsigned char*)"M0-");
+        mmu_state = S::SetModeNormal;
       }
 
     } else if (mmu_state == S::FindaInit) {
@@ -331,7 +325,7 @@ void mmu_loop(void)
         fsensor_enable();
       }
 
-    } else if (mmu_state == S::SetMode1) {
+    } else if (mmu_state == S::SetModeNormal) {
       if ((tData1 == 'O') && (tData2 == 'K')) {
 #ifdef MMU_DEBUG
         puts_P(PSTR("MMU => MK3 'P0'"));
@@ -455,7 +449,7 @@ void mmu_loop(void)
       }
       mmu_cmd = 0;
     }
-    else if (((mmu_last_response + 500) < _millis()) && !mmuFSensorLoading) //request every 500ms
+    else if (((mmu_last_response + 1000) < _millis()) && !mmuFSensorLoading) //request every 500ms
     {
 #ifndef IR_SENSOR
       if(check_for_ir_sensor()) ir_sensor_detected = true;

@@ -49,7 +49,7 @@ int current_temperature_raw[EXTRUDERS] = {0};
 float current_temperature[EXTRUDERS] = {0.0};
 
 #ifdef PINDA_THERMISTOR
-int current_temperature_raw_pinda = 0;
+uint16_t current_temperature_raw_pinda = 0;
 float current_temperature_pinda = 0.0;
 #endif //PINDA_THERMISTOR
 
@@ -75,14 +75,44 @@ float redundant_temperature = 0.0;
 
 #ifdef PIDTEMP
 float _Kp, _Ki, _Kd;
-float _BedKp = DEFAULT_bedKp, _BedKi = DEFAULT_bedKi, _BedKd = DEFAULT_bedKd;
-unsigned long timeout;
 int pid_cycle, pid_number_of_cycles;
 bool pid_tuning_finished = false;
 #ifdef PID_ADD_EXTRUSION_RATE
 float Kc = DEFAULT_Kc;
 #endif
+//static cannot be external:
+static float iState_sum[EXTRUDERS] = {0};
+static float dState_last[EXTRUDERS] = {0};
+static float pTerm[EXTRUDERS];
+static float iTerm[EXTRUDERS];
+static float dTerm[EXTRUDERS];
+//int output;
+static float pid_error[EXTRUDERS];
+static float iState_sum_min[EXTRUDERS];
+static float iState_sum_max[EXTRUDERS];
+// static float pid_input[EXTRUDERS];
+// static float pid_output[EXTRUDERS];
+static bool pid_reset[EXTRUDERS];
 #endif //PIDTEMP
+
+#ifdef PIDTEMPBED
+//static cannot be external:
+static float temp_iState_bed = {0};
+static float temp_dState_bed = {0};
+static float pTerm_bed;
+static float iTerm_bed;
+static float dTerm_bed;
+//int output;
+static float pid_error_bed;
+static float temp_iState_min_bed;
+static float temp_iState_max_bed;
+#else  //PIDTEMPBED
+static unsigned long previous_millis_bed_heater;
+#endif //PIDTEMPBED
+
+#ifdef FANCHECK
+  volatile uint8_t fan_check_error = EFCE_OK;
+#endif
 
 #ifdef FAN_SOFT_PWM
 unsigned char fanSpeedSoftPwm;
@@ -103,22 +133,10 @@ static volatile bool temp_meas_ready = false;
 //static cannot be external:
 static float temp_iState[EXTRUDERS] = {0};
 static float temp_dState[EXTRUDERS] = {0};
-static float pTerm[EXTRUDERS];
-static float iTerm[EXTRUDERS];
-static float dTerm[EXTRUDERS];
 //int output;
-static float pid_error[EXTRUDERS];
 static float temp_iState_min[EXTRUDERS];
 static float temp_iState_max[EXTRUDERS];
-static bool pid_reset[EXTRUDERS];
 #endif //PIDTEMP
-//int output;
-static float pid_error_bed;
-static float temp_iState_min_bed;
-static float temp_iState_max_bed;
-
-PID bedPID(&current_temperature_bed, &pid_error_bed, &target_temperature_bed, _BedKp, _BedKi, _BedKd, DIRECT);
-PID_ATune bedPIDAutotune(&current_temperature_bed, &pid_error_bed, &target_temperature_bed);
 
 static unsigned char soft_pwm[EXTRUDERS];
 
@@ -128,8 +146,11 @@ static unsigned char soft_pwm_fan;
 #if (defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1) || \
     (defined(EXTRUDER_1_AUTO_FAN_PIN) && EXTRUDER_1_AUTO_FAN_PIN > -1) || \
     (defined(EXTRUDER_2_AUTO_FAN_PIN) && EXTRUDER_2_AUTO_FAN_PIN > -1)
-static unsigned long extruder_autofan_last_check;
-#endif
+  unsigned long extruder_autofan_last_check = _millis();
+  uint8_t fanSpeedBckp = 255;
+  bool fan_measuring = false;
+
+#endif  
 
 #if EXTRUDERS > 3
 #error Unsupported number of extruders
@@ -232,7 +253,11 @@ void PID_autotune(float temp, int extruder, int ncycles)
   unsigned long extruder_autofan_last_check = _millis();
 #endif
 
-  if ((extruder >= EXTRUDERS) || extruder < EXTRUDERS)
+  if ((extruder >= EXTRUDERS)
+#if (TEMP_BED_PIN <= -1)
+      || (extruder < 0)
+#endif
+  )
   {
     SERIAL_ECHOLN("PID Autotune failed. Bad extruder number.");
     pid_tuning_finished = true;
@@ -244,10 +269,18 @@ void PID_autotune(float temp, int extruder, int ncycles)
 
   disable_heater(); // switch off all heaters.
 
-  if (extruder >= 0)
+  if (extruder < 0)
+  {
+    soft_pwm_bed = (MAX_BED_POWER) / 2;
+    OCR0B = (int)soft_pwm_bed;
+    bias = d = (MAX_BED_POWER) / 2;
+    target_temperature_bed = (int)temp; // to display the requested target bed temperature properly on the main screen
+  }
+  else
   {
     soft_pwm[extruder] = (PID_MAX) / 2;
     bias = d = (PID_MAX) / 2;
+    target_temperature[extruder] = (int)temp; // to display the requested target extruder temperature properly on the main screen
   }
 
   for (;;)
@@ -259,7 +292,7 @@ void PID_autotune(float temp, int extruder, int ncycles)
     { // temp sample ready
       updateTemperaturesFromRawValues();
 
-      input = current_temperature[extruder];
+      input = (extruder < 0) ? current_temperature_bed : current_temperature[extruder];
 
       max = max(max, input);
       min = min(min, input);
@@ -279,7 +312,13 @@ void PID_autotune(float temp, int extruder, int ncycles)
         if (_millis() - t2 > 5000)
         {
           heating = false;
-          soft_pwm[extruder] = (bias - d) >> 1;
+          if (extruder < 0)
+          {
+            soft_pwm_bed = (bias - d) >> 1;
+            OCR0B = (int)soft_pwm_bed;
+          }
+          else
+            soft_pwm[extruder] = (bias - d) >> 1;
           t1 = _millis();
           t_high = t1 - t2;
           max = temp;
@@ -295,9 +334,9 @@ void PID_autotune(float temp, int extruder, int ncycles)
           if (pid_cycle > 0)
           {
             bias += (d * (t_high - t_low)) / (t_low + t_high);
-            bias = constrain(bias, 20, PID_MAX - 20);
-            if (bias > PID_MAX / 2)
-              d = PID_MAX - 1 - bias;
+            bias = constrain(bias, 20, (extruder < 0 ? (MAX_BED_POWER) : (PID_MAX)) - 20);
+            if (bias > (extruder < 0 ? (MAX_BED_POWER) : (PID_MAX)) / 2)
+              d = (extruder < 0 ? (MAX_BED_POWER) : (PID_MAX)) - 1 - bias;
             else
               d = bias;
 
@@ -327,9 +366,31 @@ void PID_autotune(float temp, int extruder, int ncycles)
               SERIAL_PROTOCOLLN(_Ki);
               SERIAL_PROTOCOLPGM(" Kd: ");
               SERIAL_PROTOCOLLN(_Kd);
+              /*
+              _Kp = 0.33*Ku;
+              _Ki = _Kp/Tu;
+              _Kd = _Kp*Tu/3;
+              SERIAL_PROTOCOLLNPGM(" Some overshoot ");
+              SERIAL_PROTOCOLPGM(" Kp: "); SERIAL_PROTOCOLLN(_Kp);
+              SERIAL_PROTOCOLPGM(" Ki: "); SERIAL_PROTOCOLLN(_Ki);
+              SERIAL_PROTOCOLPGM(" Kd: "); SERIAL_PROTOCOLLN(_Kd);
+              _Kp = 0.2*Ku;
+              _Ki = 2*_Kp/Tu;
+              _Kd = _Kp*Tu/3;
+              SERIAL_PROTOCOLLNPGM(" No overshoot ");
+              SERIAL_PROTOCOLPGM(" Kp: "); SERIAL_PROTOCOLLN(_Kp);
+              SERIAL_PROTOCOLPGM(" Ki: "); SERIAL_PROTOCOLLN(_Ki);
+              SERIAL_PROTOCOLPGM(" Kd: "); SERIAL_PROTOCOLLN(_Kd);
+              */
             }
           }
-          soft_pwm[extruder] = (bias + d) >> 1;
+          if (extruder < 0)
+          {
+            soft_pwm_bed = (bias + d) >> 1;
+            OCR0B = (int)soft_pwm_bed;
+          }
+          else
+            soft_pwm[extruder] = (bias + d) >> 1;
           pid_cycle++;
           min = temp;
         }
@@ -345,8 +406,16 @@ void PID_autotune(float temp, int extruder, int ncycles)
     if (_millis() - temp_millis > 2000)
     {
       int p;
-      p = soft_pwm[extruder];
-      SERIAL_PROTOCOLPGM("T:");
+      if (extruder < 0)
+      {
+        p = soft_pwm_bed;
+        SERIAL_PROTOCOLPGM("B:");
+      }
+      else
+      {
+        p = soft_pwm[extruder];
+        SERIAL_PROTOCOLPGM("T:");
+      }
 
       SERIAL_PROTOCOL(input);
       SERIAL_PROTOCOLPGM(" @:");
@@ -365,6 +434,10 @@ void PID_autotune(float temp, int extruder, int ncycles)
       else if (safety_check_cycles == safety_check_cycles_count)
       { //check that temperature is rising
         safety_check_cycles++;
+        //SERIAL_ECHOPGM("Time from beginning: ");
+        //MYSERIAL.print(safety_check_cycles_count * 2);
+        //SERIAL_ECHOPGM("s. Difference between current and ambient T: ");
+        //MYSERIAL.println(input - temp_ambient);
 
         if (abs(input - temp_ambient) < 5.0)
         {
@@ -393,83 +466,10 @@ void PID_autotune(float temp, int extruder, int ncycles)
   }
 }
 
-void PIDBED_autotune(float temp, int ncycles)
+// ready for eventually parameters adjusting
+void resetPID(uint8_t)                            // only for compiler-warning elimination (if function do nothing)
+//void resetPID(uint8_t extruder)
 {
-  float temp_current, kp, ki, kd;
-  bool tuning = true, waiting = false;
-
-  SERIAL_ECHOLN("PID Autotune start");
-  disable_heater(); // switch off all heaters.
-
-  for (int i = 0; i < ncycles; i++)
-  {
-    while ((current_temperature_bed > (temp - 20)) && target_temperature_bed == 0.0)
-    {
-#ifdef WATCHDOG
-      wdt_reset();
-#endif //WATCHDOG
-      if (temp_meas_ready == true)
-      {
-        updateTemperaturesFromRawValues();
-        if (!waiting)
-        {
-          SERIAL_PROTOCOLPGM("Waiting for bed to cool down...");
-          waiting = true;
-        }
-        lcd_update(0);
-      }
-    }
-    //Set the output to the desired starting frequency.
-    waiting = false;
-    target_temperature_bed = temp;
-    pid_error_bed = MAX_BED_POWER/2;
-    bedPIDAutotune.SetNoiseBand(0.5);
-    bedPIDAutotune.SetOutputStep(60);
-    bedPIDAutotune.SetLookbackSec(5);
-    while (tuning)
-    {
-#ifdef WATCHDOG
-      wdt_reset();
-#endif //WATCHDOG
-      if (temp_meas_ready == true)
-      {
-        updateTemperaturesFromRawValues();
-        byte val = (bedPIDAutotune.Runtime());
-        if (val != 0) tuning = false;
-        if ((int)pid_error_bed > 255) soft_pwm_bed = 255;
-        else if ((int)pid_error_bed < 0) soft_pwm_bed = 0;
-        else soft_pwm_bed = pid_error_bed;
-        OCR0B = (int)soft_pwm_bed;
-      }
-      lcd_update(0);
-    }
-    if (current_temperature_bed > (temp + 20))
-    {
-      SERIAL_PROTOCOLLNPGM("PID Autotune failed! Temperature too high");
-      OCR0B = 0;
-      target_temperature_bed = 0;
-      bedPIDAutotune.Cancel();
-      return;
-    }
-    OCR0B = 0;
-    target_temperature_bed = 0;
-    kp = bedPIDAutotune.GetKp();
-    ki = bedPIDAutotune.GetKi();
-    kd = bedPIDAutotune.GetKd();
-    bedPID.SetTunings(kp, ki, kd);
-    SERIAL_PROTOCOLLNPGM("BED PID Autotune Successful.");
-    SERIAL_PROTOCOLLNPGM("Load with M304 D<> I<> P<>");
-    SERIAL_PROTOCOLLNPGM("then save with M500 gcodes.");
-    SERIAL_PROTOCOLLNPGM(" Cycle: ");
-    SERIAL_PROTOCOLLN(i + 1);
-    SERIAL_PROTOCOLPGM(" Kp: ");
-    SERIAL_PROTOCOLLN(kp);
-    SERIAL_PROTOCOLPGM(" Ki: ");
-    SERIAL_PROTOCOLLN(ki);
-    SERIAL_PROTOCOLPGM(" Kd: ");
-    SERIAL_PROTOCOLLN(kd);
-  }
-  bedPID.SetMode(AUTOMATIC);
 }
 
 void updatePID()
@@ -508,6 +508,49 @@ int getHeaterPower(int heater)
 #endif
 #endif
 
+void checkFanSpeed()
+{
+	uint8_t max_print_fan_errors = 0;
+	uint8_t max_extruder_fan_errors = 0;
+#ifdef FAN_SOFT_PWM
+	max_print_fan_errors = 3; //15 seconds
+	max_extruder_fan_errors = 2; //10seconds
+#else //FAN_SOFT_PWM
+	max_print_fan_errors = 15; //15 seconds
+	max_extruder_fan_errors = 5; //5 seconds
+#endif //FAN_SOFT_PWM
+  
+  if(fans_check_enabled != false)
+	  fans_check_enabled = (eeprom_read_byte((uint8_t*)EEPROM_FAN_CHECK_ENABLED) > 0);
+	static unsigned char fan_speed_errors[2] = { 0,0 };
+#if (defined(FANCHECK) && defined(TACH_0) && (TACH_0 >-1))
+	if ((fan_speed[0] == 0) && (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE)){ fan_speed_errors[0]++;}
+	else{
+    fan_speed_errors[0] = 0;
+    host_keepalive();
+  }
+#endif
+#if (defined(FANCHECK) && defined(TACH_1) && (TACH_1 >-1))
+	if ((fan_speed[1] < 5) && ((blocks_queued() ? block_buffer[block_buffer_tail].fan_speed : fanSpeed) > MIN_PRINT_FAN_SPEED)) fan_speed_errors[1]++;
+	else fan_speed_errors[1] = 0;
+#endif
+
+	// drop the fan_check_error flag when both fans are ok
+	if( fan_speed_errors[0] == 0 && fan_speed_errors[1] == 0 && fan_check_error == EFCE_REPORTED){
+		// we may even send some info to the LCD from here
+		fan_check_error = EFCE_OK;
+	}
+
+	if ((fan_speed_errors[0] > max_extruder_fan_errors) && fans_check_enabled) {
+		fan_speed_errors[0] = 0;
+		fanSpeedError(0); //extruder fan
+	}
+	if ((fan_speed_errors[1] > max_print_fan_errors) && fans_check_enabled) {
+		fan_speed_errors[1] = 0;
+		fanSpeedError(1); //print fan
+	}
+}
+
 void setExtruderAutoFanState(int pin, bool state)
 {
   unsigned char newFanSpeed = (state != 0) ? EXTRUDER_AUTO_FAN_SPEED : 0;
@@ -533,35 +576,6 @@ void countFanSpeed()
 }
 
 extern bool fans_check_enabled;
-
-void checkFanSpeed()
-{
-  fans_check_enabled = (eeprom_read_byte((uint8_t *)EEPROM_FAN_CHECK_ENABLED) > 0);
-  static unsigned char fan_speed_errors[2] = {0, 0};
-#if (defined(FANCHECK) && defined(TACH_0) && (TACH_0 > -1))
-  if ((fan_speed[0] == 0) && (current_temperature[0] > EXTRUDER_AUTO_FAN_TEMPERATURE))
-    fan_speed_errors[0]++;
-  else
-    fan_speed_errors[0] = 0;
-#endif
-#if (defined(FANCHECK) && defined(TACH_1) && (TACH_1 > -1))
-  if ((fan_speed[1] == 0) && ((blocks_queued() ? block_buffer[block_buffer_tail].fan_speed : fanSpeed) > MIN_PRINT_FAN_SPEED))
-    fan_speed_errors[1]++;
-  else
-    fan_speed_errors[1] = 0;
-#endif
-
-  if ((fan_speed_errors[0] > 5) && fans_check_enabled)
-  {
-    fan_speed_errors[0] = 0;
-    fanSpeedError(0); //extruder fan
-  }
-  if ((fan_speed_errors[1] > 15) && fans_check_enabled)
-  {
-    fan_speed_errors[1] = 0;
-    fanSpeedError(1); //print fan
-  }
-}
 
 void fanSpeedError(unsigned char _fan)
 {
@@ -671,8 +685,12 @@ void manage_heater()
 
   if (temp_meas_ready != true) //better readability
     return;
+  // more precisely - this condition partially stabilizes time interval for regulation values evaluation (@ ~ 230ms)
 
   updateTemperaturesFromRawValues();
+
+  check_max_temp();
+  check_min_temp();
 
 #ifdef TEMP_RUNAWAY_BED_HYSTERESIS
   temp_runaway_check(0, target_temperature_bed, current_temperature_bed, (int)soft_pwm_bed, true);
@@ -689,47 +707,51 @@ void manage_heater()
     pid_input = current_temperature[e];
 
 #ifndef PID_OPENLOOP
-    pid_error[e] = target_temperature[e] - pid_input;
-    if (pid_error[e] > PID_FUNCTIONAL_RANGE)
-    {
-      pid_output = BANG_MAX;
-      pid_reset[e] = true;
-    }
-    else if (pid_error[e] < -PID_FUNCTIONAL_RANGE || target_temperature[e] == 0)
+    if (target_temperature[e] == 0)
     {
       pid_output = 0;
       pid_reset[e] = true;
     }
     else
     {
-      if (pid_reset[e] == true)
+      pid_error[e] = target_temperature[e] - pid_input;
+      if (pid_reset[e])
       {
-        temp_iState[e] = 0.0;
+        iState_sum[e] = 0.0;
+        dTerm[e] = 0.0; // 'dState_last[e]' initial setting is not necessary (see end of if-statement)
         pid_reset[e] = false;
       }
+#ifndef PonM
       pTerm[e] = cs.Kp * pid_error[e];
-      temp_iState[e] += pid_error[e];
-      temp_iState[e] = constrain(temp_iState[e], temp_iState_min[e], temp_iState_max[e]);
-      iTerm[e] = cs.Ki * temp_iState[e];
-
-//K1 defined in Configuration.h in the PID settings
-#define K2 (1.0 - K1)
-      dTerm[e] = (cs.Kd * (pid_input - temp_dState[e])) * K2 + (K1 * dTerm[e]);
-      pid_output = pTerm[e] + iTerm[e] - dTerm[e];
+      iState_sum[e] += pid_error[e];
+      iState_sum[e] = constrain(iState_sum[e], iState_sum_min[e], iState_sum_max[e]);
+      iTerm[e] = cs.Ki * iState_sum[e];
+// PID_K1 defined in Configuration.h in the PID settings
+#define K2 (1.0 - PID_K1)
+      dTerm[e] = (cs.Kd * (pid_input - dState_last[e])) * K2 + (PID_K1 * dTerm[e]); // e.g. digital filtration of derivative term changes
+      pid_output = pTerm[e] + iTerm[e] - dTerm[e];                                  // subtraction due to "Derivative on Measurement" method (i.e. derivative of input instead derivative of error is used)
       if (pid_output > PID_MAX)
       {
         if (pid_error[e] > 0)
-          temp_iState[e] -= pid_error[e]; // conditional un-integration
+          iState_sum[e] -= pid_error[e]; // conditional un-integration
         pid_output = PID_MAX;
       }
       else if (pid_output < 0)
       {
         if (pid_error[e] < 0)
-          temp_iState[e] -= pid_error[e]; // conditional un-integration
+          iState_sum[e] -= pid_error[e]; // conditional un-integration
         pid_output = 0;
       }
+#else  // PonM ("Proportional on Measurement" method)
+      iState_sum[e] += cs.Ki * pid_error[e];
+      iState_sum[e] -= cs.Kp * (pid_input - dState_last[e]);
+      iState_sum[e] = constrain(iState_sum[e], 0, PID_INTEGRAL_DRIVE_MAX);
+      dTerm[e] = cs.Kd * (pid_input - dState_last[e]);
+      pid_output = iState_sum[e] - dTerm[e]; // subtraction due to "Derivative on Measurement" method (i.e. derivative of input instead derivative of error is used)
+      pid_output = constrain(pid_output, 0, PID_MAX);
+#endif // PonM
     }
-    temp_dState[e] = pid_input;
+    dState_last[e] = pid_input;
 #else
     pid_output = constrain(target_temperature[e], 0, PID_MAX);
 #endif //PID_OPENLOOP
@@ -746,7 +768,7 @@ void manage_heater()
     SERIAL_ECHO(" iTerm ");
     SERIAL_ECHO(iTerm[e]);
     SERIAL_ECHO(" dTerm ");
-    SERIAL_ECHOLN(dTerm[e]);
+    SERIAL_ECHOLN(-dTerm[e]);
 #endif //PID_DEBUG
 #else  /* PID off */
     pid_output = 0;
@@ -757,11 +779,7 @@ void manage_heater()
 #endif
 
     // Check if temperature is within the correct range
-#ifdef AMBIENT_THERMISTOR
-    if (((current_temperature_ambient < MINTEMP_MINAMBIENT) || (current_temperature[e] > minttemp[e])) && (current_temperature[e] < maxttemp[e]))
-#else  //AMBIENT_THERMISTOR
-    if ((current_temperature[e] > minttemp[e]) && (current_temperature[e] < maxttemp[e]))
-#endif //AMBIENT_THERMISTOR
+    if ((current_temperature[e] < maxttemp[e]) && (target_temperature[e] != 0))
     {
       soft_pwm[e] = (int)pid_output >> 1;
     }
@@ -803,10 +821,41 @@ void manage_heater()
 #endif
   } // End extruder for loop
 
+#define FAN_CHECK_PERIOD 5000  //5s
+#define FAN_CHECK_DURATION 100 //100ms
+
 #ifndef DEBUG_DISABLE_FANCHECK
 #if (defined(EXTRUDER_0_AUTO_FAN_PIN) && EXTRUDER_0_AUTO_FAN_PIN > -1) || \
     (defined(EXTRUDER_1_AUTO_FAN_PIN) && EXTRUDER_1_AUTO_FAN_PIN > -1) || \
     (defined(EXTRUDER_2_AUTO_FAN_PIN) && EXTRUDER_2_AUTO_FAN_PIN > -1)
+
+#ifdef FAN_SOFT_PWM
+#ifdef FANCHECK
+  if ((_millis() - extruder_autofan_last_check > FAN_CHECK_PERIOD) && (!fan_measuring))
+  {
+    extruder_autofan_last_check = _millis();
+    fanSpeedBckp = fanSpeedSoftPwm;
+
+    if (fanSpeedSoftPwm >= MIN_PRINT_FAN_SPEED)
+    { //if we are in rage where we are doing fan check, set full PWM range for a short time to measure fan RPM by reading tacho signal without modulation by PWM signal
+      //  printf_P(PSTR("fanSpeedSoftPwm 1: %d\n"), fanSpeedSoftPwm);
+      fanSpeedSoftPwm = 255;
+    }
+    fan_measuring = true;
+  }
+  if ((_millis() - extruder_autofan_last_check > FAN_CHECK_DURATION) && (fan_measuring))
+  {
+    countFanSpeed();
+    checkFanSpeed();
+    //printf_P(PSTR("fanSpeedSoftPwm 1: %d\n"), fanSpeedSoftPwm);
+    fanSpeedSoftPwm = fanSpeedBckp;
+    //printf_P(PSTR("fan PWM: %d; extr fanSpeed measured: %d; print fan speed measured: %d \n"), fanSpeedBckp, fan_speed[0], fan_speed[1]);
+    extruder_autofan_last_check = _millis();
+    fan_measuring = false;
+  }
+#endif //FANCHECK
+  checkExtruderAutoFans();
+#else //FAN_SOFT_PWM
   if (_millis() - extruder_autofan_last_check > 1000) // only need to check fan state very infrequently
   {
 #if (defined(FANCHECK) && ((defined(TACH_0) && (TACH_0 > -1)) || (defined(TACH_1) && (TACH_1 > -1))))
@@ -816,23 +865,114 @@ void manage_heater()
     checkExtruderAutoFans();
     extruder_autofan_last_check = _millis();
   }
+#endif //FAN_SOFT_PWM
+
 #endif
 #endif //DEBUG_DISABLE_FANCHECK
 
-  bedPID.Compute();
-  if (((current_temperature_bed > BED_MINTEMP) || (current_temperature_ambient < MINTEMP_MINAMBIENT)) && (current_temperature_bed < BED_MAXTEMP))
-    soft_pwm_bed = (int)pid_error_bed;
-  else
-    soft_pwm_bed = 0;
-  if ((timeout + 5000) < _millis())
-  {
-    printf_P(PSTR("BedPWM=%d, BEDTar=%d, BEDCur=%d\n"), (int)soft_pwm_bed, target_temperature_bed, (int)current_temperature_bed);
-    timeout = _millis();
-  }
-  OCR0B = (int)soft_pwm_bed;
-#ifdef HOST_KEEPALIVE_FEATURE
-  host_keepalive();
+#ifndef PIDTEMPBED
+  if (_millis() - previous_millis_bed_heater < BED_CHECK_INTERVAL)
+    return;
+  previous_millis_bed_heater = _millis();
 #endif
+
+#if TEMP_SENSOR_BED != 0
+
+#ifdef PIDTEMPBED
+  pid_input = current_temperature_bed;
+
+#ifndef PID_OPENLOOP
+  pid_error_bed = target_temperature_bed - pid_input;
+  pTerm_bed = cs.bedKp * pid_error_bed;
+  temp_iState_bed += pid_error_bed;
+  temp_iState_bed = constrain(temp_iState_bed, temp_iState_min_bed, temp_iState_max_bed);
+  iTerm_bed = cs.bedKi * temp_iState_bed;
+
+//PID_K1 defined in Configuration.h in the PID settings
+#define K2 (1.0 - PID_K1)
+  dTerm_bed = (cs.bedKd * (pid_input - temp_dState_bed)) * K2 + (PID_K1 * dTerm_bed);
+  temp_dState_bed = pid_input;
+
+  pid_output = pTerm_bed + iTerm_bed - dTerm_bed;
+  if (pid_output > MAX_BED_POWER)
+  {
+    if (pid_error_bed > 0)
+      temp_iState_bed -= pid_error_bed; // conditional un-integration
+    pid_output = MAX_BED_POWER;
+  }
+  else if (pid_output < 0)
+  {
+    if (pid_error_bed < 0)
+      temp_iState_bed -= pid_error_bed; // conditional un-integration
+    pid_output = 0;
+  }
+
+#else
+  pid_output = constrain(target_temperature_bed, 0, MAX_BED_POWER);
+#endif //PID_OPENLOOP
+
+  if (current_temperature_bed < BED_MAXTEMP)
+  {
+    soft_pwm_bed = (int)pid_output >> 1;
+    OCR0B = (int)soft_pwm_bed;
+  }
+  else
+  {
+    soft_pwm_bed = 0;
+    OCR0B = (int)soft_pwm_bed;
+  }
+
+#elif !defined(BED_LIMIT_SWITCHING)
+  // Check if temperature is within the correct range
+  if (current_temperature_bed < BED_MAXTEMP)
+  {
+    if (current_temperature_bed >= target_temperature_bed)
+    {
+      soft_pwm_bed = 0;
+      OCR0B = (int)soft_pwm_bed;
+    }
+    else
+    {
+      soft_pwm_bed = MAX_BED_POWER >> 1;
+      OCR0B = (int)soft_pwm_bed;
+    }
+  }
+  else
+  {
+    soft_pwm_bed = 0;
+    OCR0B = (int)soft_pwm_bed;
+    WRITE(HEATER_BED_PIN, LOW);
+  }
+#else //#ifdef BED_LIMIT_SWITCHING
+  // Check if temperature is within the correct band
+  if (current_temperature_bed < BED_MAXTEMP)
+  {
+    if (current_temperature_bed > target_temperature_bed + BED_HYSTERESIS)
+    {
+      soft_pwm_bed = 0;
+      OCR0B = (int)soft_pwm_bed;
+    }
+    else if (current_temperature_bed <= target_temperature_bed - BED_HYSTERESIS)
+    {
+      soft_pwm_bed = MAX_BED_POWER >> 1;
+      OCR0B = (int)soft_pwm_bed;
+    }
+  }
+  else
+  {
+    soft_pwm_bed = 0;
+    OCR0B = (int)soft_pwm_bed;
+    WRITE(HEATER_BED_PIN, LOW);
+  }
+#endif
+  if (target_temperature_bed == 0)
+  {
+    soft_pwm_bed = 0;
+    OCR0B = (int)soft_pwm_bed;
+  }
+#endif
+
+  host_keepalive();
 }
 
 #define PGM_RD_W(x) (short)pgm_read_word(&x)
@@ -1069,7 +1209,6 @@ void tp_init()
   adc_init();
 
   timer0_init();
-  bedPID.SetMode(AUTOMATIC);
 
   // Use timer2 for temperature measurement
   // Interleave temperature interrupt with millies interrupt

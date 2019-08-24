@@ -467,9 +467,9 @@ asm(".global _printf_float");
 #define  DEFAULT_bedKi 1.60
 #define  DEFAULT_bedKd 73.76
 #else
-#define  DEFAULT_bedKp 10 // 126.13
-#define  DEFAULT_bedKi 0 // 4.30
-#define  DEFAULT_bedKd 0 // 924.76
+#define  DEFAULT_bedKp 198.28
+#define  DEFAULT_bedKi 10.03
+#define  DEFAULT_bedKd 980.11
 #endif
 
 //120v 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)
@@ -638,17 +638,8 @@ asm(".global _printf_float");
 
 #define MMU_REQUIRED_FW_BUILDNR 83
 #define MMU_HWRESET
-#define MMU_RST_PIN 76
 //#define MMU_DEBUG //print communication between MMU2 and printer on serial
-//#define MMU_HAS_CUTTER
 
-// This is experimental feature requested by our test department.
-// There is no known use for ordinary user. If enabled by this macro
-// and enabled from printer menu (not enabled by default). It cuts filament
-// every time when switching filament from gcode. MMU_HAS_CUTTER needs to be
-// defined.
-
-//#define MMU_ALWAYS_CUT
 #define MMU_IDLER_SENSOR_ATTEMPTS_NR 21 //max. number of attempts to load filament if first load failed; value for max bowden length and case when loading fails right at the beginning
 
 #endif //__CONFIGURATION_PRUSA_H

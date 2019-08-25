@@ -158,11 +158,11 @@ void mmu_loop(void)
   int16_t tCSUM = ((rxCSUM1 << 8) | rxCSUM2);
   bool confPayload = confirmedPayload;
   bool pendACK = pendingACK;
-
   if ((txRESEND) || (pendACK && ((startTXTimeout + TXTimeout) < _millis())))
   {
     txRESEND = false;
     confirmedPayload = false;
+    confPayload = false;
     startRxFlag = false;
     uart2_txPayload(lastTxPayload);
   }
@@ -170,11 +170,13 @@ void mmu_loop(void)
   if (confPayload)
     printf_P(PSTR("MMU Pre-Conf Payload,0x%2X %2X %2X %2X%2X\n"), tData1, tData2, tData3, (tCSUM >> 8), tCSUM);
   #endif //MMU_DEBUG
+  if (txNAKNext) uart2_txACK(false); // Send NACK Byte
   if (confPayload && pendACK) 
   {
     if (!(tCSUM == (tData1 + tData2 + tData3)))
     { // If confirmed with bad CSUM return has been requested
       uart2_txACK(false); // Send NACK Byte
+      confPayload = false;
       #ifdef MMU_DEBUG
       puts_P(PSTR("Non-Conf Payload"));
       #endif //MMU_DEBUG
@@ -182,9 +184,9 @@ void mmu_loop(void)
       tData2 = ' ';
       tData3 = ' ';
     } // If confirmed with NACK return has been requested
-    else if (txNAKNext) uart2_txACK(false); // Send NACK Byte
     else
     {
+      mmu_last_response = _millis(); // Update last response counter
       uart2_txACK(); // Send ACK Byte
       #ifdef MMU_DEBUG
       printf_P(PSTR("MMU Conf Payload,0x%2X %2X %2X %2X%2X\n"), tData1, tData2, tData3, (tCSUM >> 8), tCSUM);
@@ -207,7 +209,6 @@ void mmu_loop(void)
       printf_P(PSTR("MMU => MK3 'OK Active Extruder:%d'\n"), tmp_extruder + 1);
       tmp_extruder = tData3;
       mmu_extruder = tmp_extruder;
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if ((tData1 == 'Z') && (tData2 == 'Z') && (tData3 == 'Z'))
     { // Clear MK3 Messages
@@ -215,14 +216,12 @@ void mmu_loop(void)
       lcd_setstatuspgm(_T(WELCOME_MSG));
       lcd_return_to_status();
       lcd_update_enable(true);
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if ((tData1 == 'Z') && (tData2 == 'Z') && (tData3 == 'R'))
     { // Advise MMU2S to reconnect
       lcd_setstatuspgm(_T(WELCOME_MSG));
       lcd_return_to_status();
       lcd_update_enable(true);
-      mmu_last_response = _millis(); // Update last response counter
       mmu_reset();
       mmu_state = S::Init;
 
@@ -241,7 +240,6 @@ void mmu_loop(void)
       #ifdef OCTO_NOTIFICATIONS_ON
       printf_P(PSTR("// action:mmuFailedLoad1\n"));
       #endif                                 // OCTO_NOTIFICATIONS_ON
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if ((tData1 == 'Z') && (tData2 == 'L') && (tData3 == '2'))
     {                                        // MMU Loading Failed
@@ -252,7 +250,6 @@ void mmu_loop(void)
       #endif // OCTO_NOTIFICATIONS_ON
       mmu_loading_flag = false;
       mmu_state = S::Wait;
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if ((tData1 == 'Z') && (tData2 == 'U'))
     {                                        // MMU Unloading Failed
@@ -261,37 +258,31 @@ void mmu_loop(void)
       #ifdef OCTO_NOTIFICATIONS_ON
       printf_P(PSTR("// action:mmuFailedUnload\n"));
       #endif                                 // OCTO_NOTIFICATIONS_ON
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if ((tData1 == 'Z') && (tData2 == '1'))
     {                                        // MMU Filament Loaded
                                               //********************
       lcd_setstatus("ERR: Filament Loaded"); // 20 Chars
-      mmu_last_response = _millis();         // Update last response counter
     }
     else if ((tData1 == 'X') && (tData2 == '1'))
     {                                        // MMU Setup Menu
                                               //********************
       lcd_setstatus("   MMU Setup Menu   "); // 20 Chars
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if ((tData1 == 'X') && (tData2 == '2'))
     {                                        // MMU Adj Bowden Len
                                               //********************
       lcd_setstatus("MMU Adj BowLen/Bond "); // 20 Chars
-      mmu_last_response = _millis();         // Update last response counter
     }
     else if ((tData1 == 'X') && (tData2 == '5'))
     {                                        // MMU Setup Menu: Unlock EEPROM
                                               //********************
       lcd_setstatus(" MMU Unlock EEPROM  "); // 20 Chars
-      mmu_last_response = _millis();         // Update last response counter
     }
     else if ((tData1 == 'X') && (tData2 == '6'))
     {                                        // MMU Setup Menu: Clr Unlocked EEPROM
                                               //********************
       lcd_setstatus("Clr EEPROM(unlocked)"); // 20 Chars
-      mmu_last_response = _millis();         // Update last response counter
     }
     else if ((tData1 == 'X') && (tData2 == '7'))
     {                                   // MMU Setup Menu: Exit
@@ -299,7 +290,6 @@ void mmu_loop(void)
       lcd_setstatus("Exit Setup Menu"); // 20 Chars
       lcd_return_to_status();
       lcd_update_enable(true);
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if (tData1 == 'B')
     { // MMU Adj Fsensor to Bondtech Length
@@ -316,7 +306,6 @@ void mmu_loop(void)
       lcd_puts_P(_i("Current mm: "));
       lcd_set_cursor(12, 3);
       lcd_print((tData2 << 8) | (tData3));
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if (tData1 == 'V')
     { // MMU Adj Bowden Len: Loaded Message
@@ -333,7 +322,6 @@ void mmu_loop(void)
       lcd_puts_P(_i("Current mm: "));
       lcd_set_cursor(12, 3);
       lcd_print((tData2 << 8) | (tData3));
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if (tData1 == 'W')
     { // MMU Adj Bowden Len: Unloaded Message
@@ -349,13 +337,11 @@ void mmu_loop(void)
       lcd_puts_P(_i("Current mm: "));
       lcd_set_cursor(12, 3);
       lcd_print((tData2 << 8) | (tData3));
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if (tData1 == 'T')
     { // MMU Report ToolChange Count
       toolChanges = ((tData2 << 8) | (tData3));
       printf_P(PSTR("MMU => MK3 '@toolChange:%d'\n"), toolChanges);
-      mmu_last_response = _millis(); // Update last response counter
     }
   } // End of mmu_state > S::Disabled
 
@@ -371,7 +357,7 @@ void mmu_loop(void)
       puts_P(PSTR("MMU => MK3 'start'"));
       puts_P(PSTR("MK3 => MMU 'S1'"));
       #endif                                 //MMU_DEBUG
-      mmu_last_response = _millis(); // Update last response counter
+      
       uart2_txPayload((unsigned char *)"S1-");
       mmu_state = S::GetVer;
     }
@@ -382,34 +368,40 @@ void mmu_loop(void)
     } // End of if STR
     return; // Exit method.
   case S::GetVer:
-    mmu_version = ((tData1 << 8) | (tData2));
-    printf_P(PSTR("MMU => MK3 '%d'\n"), mmu_version);
-    #ifdef MMU_DEBUG
-    puts_P(PSTR("MK3 => MMU 'S2'"));
-    #endif //MMU_DEBUG
-    uart2_txPayload((unsigned char *)"S2-");
-    mmu_state = S::GetBN;
+    if (confPayload) {
+      mmu_version = ((tData1 << 8) | (tData2));
+      printf_P(PSTR("MMU => MK3 '%d'\n"), mmu_version);
+      #ifdef MMU_DEBUG
+      puts_P(PSTR("MK3 => MMU 'S2'"));
+      #endif //MMU_DEBUG
+      uart2_txPayload((unsigned char *)"S2-");
+      mmu_state = S::GetBN;
+    }
     return; // Exit method.
   case S::GetBN:
-    mmu_buildnr = ((tData1 << 8) | (tData2));
-    printf_P(PSTR("MMU => MK3 '%d'\n"), mmu_buildnr);
-    bool version_valid = mmu_check_version();
-    if (!version_valid)
-      mmu_show_warning();
-    else
-      puts_P(PSTR("MMU version valid"));
-    uart2_txPayload((unsigned char *)"S3-");
-    mmu_state = S::GetActExt;
+    if (confPayload) {
+      mmu_buildnr = ((tData1 << 8) | (tData2));
+      printf_P(PSTR("MMU => MK3 '%d'\n"), mmu_buildnr);
+      bool version_valid = mmu_check_version();
+      if (!version_valid)
+        mmu_show_warning();
+      else
+        puts_P(PSTR("MMU version valid"));
+      uart2_txPayload((unsigned char *)"S3-");
+      mmu_state = S::GetActExt;
+    }
     return; // Exit method.
   case S::GetActExt:
-    tmp_extruder = tData3;
-    mmu_extruder = tmp_extruder;
-    printf_P(PSTR("MMU => MK3 'Active Extruder:%d'\n"), tmp_extruder + 1);
-    #ifdef MMU_DEBUG
-    puts_P(PSTR("MK3 => MMU 'P0'"));
-    #endif //MMU_DEBUG
-    uart2_txPayload((unsigned char *)"P0-");
-    mmu_state = S::FindaInit;
+    if (confPayload) {
+      tmp_extruder = tData3;
+      mmu_extruder = tmp_extruder;
+      printf_P(PSTR("MMU => MK3 'Active Extruder:%d'\n"), tmp_extruder + 1);
+      #ifdef MMU_DEBUG
+      puts_P(PSTR("MK3 => MMU 'P0'"));
+      #endif //MMU_DEBUG
+      uart2_txPayload((unsigned char *)"P0-");
+      mmu_state = S::FindaInit;
+    }
     return; // Exit method.
   case S::FindaInit:
     if ((tData1 == 'P') && (tData2 == 'K'))
@@ -513,7 +505,6 @@ void mmu_loop(void)
       startRxFlag = false;
       pendingACK = false; 
       mmu_load_step(false);
-      mmu_last_response = _millis(); // Update last response counter
       mmu_fil_loaded = true;
       mmu_idl_sens = true;
     }
@@ -540,7 +531,6 @@ void mmu_loop(void)
             enquecommand_front_P(PSTR("M600")); //save print and run M600 command
         }
       }
-      mmu_last_response = _millis(); // Update last response counter
       mmu_state = S::Idle;
       if (mmu_cmd == MmuCmd::None)
 				mmu_ready = true;
@@ -571,7 +561,6 @@ void mmu_loop(void)
       startRxFlag = false;
       pendingACK = false;
       mmu_load_step(false);
-      mmu_last_response = _millis(); // Update last response counter
       mmu_fil_loaded = true;
       mmu_idl_sens = true;
     }
@@ -579,12 +568,10 @@ void mmu_loop(void)
     {
       mmu_unload_synced((tData2 << 8) | (tData3));
       printf_P(PSTR("MMU => MK3 Unload Feedrate: %d%d\n"), tData2, tData3);
-      mmu_last_response = _millis(); // Update last response counter
     }
     else if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == '-'))
     {
       printf_P(PSTR("MMU => MK3 'ok'\n"));
-      mmu_last_response = _millis(); // Update last response counter
       mmu_ready = true;
       mmu_state = S::Idle;
     }

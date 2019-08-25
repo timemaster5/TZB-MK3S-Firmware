@@ -104,7 +104,6 @@ void uart2_txACK(bool ACK)
     if (ACK) {
         loop_until_bit_is_set(UCSR2A, UDRE2); // Do nothing until UDR is ready for more data to be written to it
         UDR2 = 0x06; // ACK HEX
-        pendingACK = false;
     } else {
         loop_until_bit_is_set(UCSR2A, UDRE2); // Do nothing until UDR is ready for more data to be written to it
         UDR2 = 0x15; // NACK HEX

@@ -34,9 +34,8 @@ ISR(USART2_RX_vect)
     if ((readRxBuffer == 0x7F) && (!startRxFlag)) {// check for start of framing bytes
         startRxFlag = true;
         rxCount = 0;
-    } else if (readRxBuffer == 0x06) pendingACK = false;  // ACK Received Clear pending flag
-    else   if (readRxBuffer == 0x15) txRESEND = true;     // Resend last message
-    else   if ( startRxFlag == true) {
+    }
+    else if ( startRxFlag == true) {
         if (rxCount > 0) {
             if (rxCount > 1) {
                 if (rxCount > 2) {
@@ -66,6 +65,8 @@ ISR(USART2_RX_vect)
             ++rxCount;
         }
     }
+    else if (readRxBuffer == 0x06) pendingACK = false;  // ACK Received Clear pending flag
+    else if (readRxBuffer == 0x15) txRESEND = true;     // Resend last message
     sei();
 }
 
@@ -103,10 +104,11 @@ void uart2_txACK(bool ACK)
     if (ACK) {
         loop_until_bit_is_set(UCSR2A, UDRE2); // Do nothing until UDR is ready for more data to be written to it
         UDR2 = 0x06; // ACK HEX
-        txACKNext = false;
+        pendingACK = false;
     } else {
         loop_until_bit_is_set(UCSR2A, UDRE2); // Do nothing until UDR is ready for more data to be written to it
         UDR2 = 0x15; // NACK HEX
         txNAKNext = false;
     }
+    delay(1);
 }

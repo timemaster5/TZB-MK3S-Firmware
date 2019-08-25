@@ -5,7 +5,6 @@
 extern bool mmu_enabled;
 extern bool mmuFSensorLoading;
 extern bool mmu_fil_loaded;
-extern bool mmuIdleFilamentTesting;
 extern uint32_t mmu_last_request;
 extern uint8_t mmu_filament_types[];
 #define OCTO_NOTIFICATIONS_ON

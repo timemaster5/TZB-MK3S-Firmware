@@ -24,6 +24,7 @@
 #define MMU_TODELAY 100
 #define MMU_TIMEOUT 10
 #define MMU_CMD_TIMEOUT 300000ul //5min timeout for mmu commands (except P0)
+#define MMU_P0_TIMEOUT 3000ul //timeout for P0 command: 3seconds
 
 #ifdef MMU_HWRESET
 #define MMU_RST_PIN 76
@@ -51,8 +52,8 @@ enum class S : uint_least8_t
   Disabled,  // = 0,
   Idle,      // = 1,
   GetFinda,  // = 2,
-  Wait,      // = 3
-  Loading
+  Wait      // = 3
+  //Loading
 };
 }
 
@@ -61,7 +62,6 @@ bool mmu_ready = false;
 bool mmu_fil_loaded = false; //if true: blocks execution of duplicit T-codes
 bool isMMUPrintPaused = false;
 bool mmu_loading_flag = false;
-bool mmuIdleFilamentTesting = true;
 int lastLoadedFilament = -10;
 uint16_t mmu_power_failures = 0;
 
@@ -149,208 +149,215 @@ bool can_extrude()
 void mmu_loop(void)
 {
   uint8_t filament = 0;
-#ifdef MMU_DEBUG
+  #ifdef MMU_DEBUG
   printf_P(PSTR("MMU loop, state=%d\n"), (int)mmu_state);
-#endif                            //MMU_DEBUG
+  #endif                            //MMU_DEBUG
   unsigned char tData1 = rxData1; // Copy volitale vars as local
   unsigned char tData2 = rxData2;
   unsigned char tData3 = rxData3;
   int16_t tCSUM = ((rxCSUM1 << 8) | rxCSUM2);
   bool confPayload = confirmedPayload;
+  bool pendACK = pendingACK;
 
-  if ((txRESEND) || (pendingACK && ((startTXTimeout + TXTimeout) < _millis())))
+  if ((txRESEND) || (pendACK && ((startTXTimeout + TXTimeout) < _millis())))
   {
     txRESEND = false;
     confirmedPayload = false;
     startRxFlag = false;
     uart2_txPayload(lastTxPayload);
-    return;
   }
-#ifdef MMU_DEBUG
+  #ifdef MMU_DEBUG
   if (confPayload)
     printf_P(PSTR("MMU Pre-Conf Payload,0x%2X %2X %2X %2X%2X\n"), tData1, tData2, tData3, (tCSUM >> 8), tCSUM);
-#endif //MMU_DEBUG
-  if ((confPayload && !(tCSUM == (tData1 + tData2 + tData3))) || txNAKNext)
-  {                     // If confirmed with bad CSUM or NACK return has been requested
-    uart2_txACK(false); // Send NACK Byte
-#ifdef MMU_DEBUG
-    puts_P(PSTR("Non-Conf Payload"));
-#endif //MMU_DEBUG
+  #endif //MMU_DEBUG
+  if (confPayload && pendACK) 
+  {
+    if (!(tCSUM == (tData1 + tData2 + tData3)))
+    { // If confirmed with bad CSUM return has been requested
+      uart2_txACK(false); // Send NACK Byte
+      #ifdef MMU_DEBUG
+      puts_P(PSTR("Non-Conf Payload"));
+      #endif //MMU_DEBUG
+      tData1 = ' ';
+      tData2 = ' ';
+      tData3 = ' ';
+    } // If confirmed with NACK return has been requested
+    else if (txNAKNext) uart2_txACK(false); // Send NACK Byte
+    else
+    {
+      uart2_txACK(); // Send ACK Byte
+      #ifdef MMU_DEBUG
+      printf_P(PSTR("MMU Conf Payload,0x%2X %2X %2X %2X%2X\n"), tData1, tData2, tData3, (tCSUM >> 8), tCSUM);
+      #endif
+    }
+  }
+  else
+  {
     tData1 = ' ';
     tData2 = ' ';
     tData3 = ' ';
   }
-  else if (confPayload)
-  {
-    uart2_txACK(); // Send ACK Byte
-#ifdef MMU_DEBUG
-    printf_P(PSTR("MMU Conf Payload,0x%2X %2X %2X %2X%2X\n"), tData1, tData2, tData3, (tCSUM >> 8), tCSUM);
-#endif
-  }
 
   // All Notification & Status Updates between MK3S/MMU2S
-  if (mmu_state > S::Disabled)
+  if (mmu_state > S::Disabled && confPayload)
+  {
+    // Undates Active Extruder when every MMU is changed. eg. manual ex selection fro feed_filament
+    if ((tData1 == 'A') && (tData2 == 'E') && (tData3 < 5))
     {
-      // Undates Active Extruder when every MMU is changed. eg. manual ex selection fro feed_filament
-      if ((tData1 == 'A') && (tData2 == 'E') && (tData3 < 5))
-      {
-        printf_P(PSTR("MMU => MK3 'OK Active Extruder:%d'\n"), tmp_extruder + 1);
-        tmp_extruder = tData3;
-        mmu_extruder = tmp_extruder;
-        mmu_last_response = _millis(); // Update last response counter
-      }
-      else if ((tData1 == 'Z') && (tData2 == 'Z') && (tData3 == 'Z'))
-      { // Clear MK3 Messages
-        //********************
-        lcd_setstatuspgm(_T(WELCOME_MSG));
-        lcd_return_to_status();
-        lcd_update_enable(true);
-        mmuIdleFilamentTesting = true;
-        mmu_last_response = _millis(); // Update last response counter
-      }
-      else if ((tData1 == 'Z') && (tData2 == 'Z') && (tData3 == 'R'))
-      { // Advise MMU2S to reconnect
-        lcd_setstatuspgm(_T(WELCOME_MSG));
-        lcd_return_to_status();
-        lcd_update_enable(true);
-        mmuIdleFilamentTesting = true;
-        mmu_last_response = _millis(); // Update last response counter
-        mmu_reset();
-        mmu_state = S::Init;
+      printf_P(PSTR("MMU => MK3 'OK Active Extruder:%d'\n"), tmp_extruder + 1);
+      tmp_extruder = tData3;
+      mmu_extruder = tmp_extruder;
+      mmu_last_response = _millis(); // Update last response counter
+    }
+    else if ((tData1 == 'Z') && (tData2 == 'Z') && (tData3 == 'Z'))
+    { // Clear MK3 Messages
+      //********************
+      lcd_setstatuspgm(_T(WELCOME_MSG));
+      lcd_return_to_status();
+      lcd_update_enable(true);
+      mmu_last_response = _millis(); // Update last response counter
+    }
+    else if ((tData1 == 'Z') && (tData2 == 'Z') && (tData3 == 'R'))
+    { // Advise MMU2S to reconnect
+      lcd_setstatuspgm(_T(WELCOME_MSG));
+      lcd_return_to_status();
+      lcd_update_enable(true);
+      mmu_last_response = _millis(); // Update last response counter
+      mmu_reset();
+      mmu_state = S::Init;
 
-        /*lcd_update_enable(false);
-        lcd_clear();                       //********************
-        lcd_set_cursor(0, 0); lcd_puts_P(_i("********************"));
-        lcd_set_cursor(0, 1); lcd_puts_P(_i("*      RESET       *"));
-        lcd_set_cursor(0, 2); lcd_puts_P(_i("*     PRINTER!     *"));
-        lcd_set_cursor(0, 3); lcd_puts_P(_i("********************"));
-        */
-      }
-      else if ((tData1 == 'Z') && (tData2 == 'L') && (tData3 == '1'))
-      {                                        // MMU Loading Failed
-                                               //********************
-        lcd_setstatus("MMU Load Failed @MMU"); // 20 Chars
-#ifdef OCTO_NOTIFICATIONS_ON
-        printf_P(PSTR("// action:mmuFailedLoad1\n"));
-#endif                                 // OCTO_NOTIFICATIONS_ON
-        mmu_last_response = _millis(); // Update last response counter
-      }
-      else if ((tData1 == 'Z') && (tData2 == 'L') && (tData3 == '2'))
-      {                                        // MMU Loading Failed
-                                               //********************
-        lcd_setstatus("MMU Load Failed @MK3"); // 20 Chars
-#ifdef OCTO_NOTIFICATIONS_ON
-        printf_P(PSTR("// action:mmuFailedLoad2\n"));
-#endif // OCTO_NOTIFICATIONS_ON
-        mmu_loading_flag = false;
-        mmu_state = S::Wait;
-        mmu_last_response = _millis(); // Update last response counter
-      }
-      else if ((tData1 == 'Z') && (tData2 == 'U'))
-      {                                        // MMU Unloading Failed
-                                               //********************
-        lcd_setstatus(" MMU Unload Failed  "); // 20 Chars
-#ifdef OCTO_NOTIFICATIONS_ON
-        printf_P(PSTR("// action:mmuFailedUnload\n"));
-#endif                                 // OCTO_NOTIFICATIONS_ON
-        mmu_last_response = _millis(); // Update last response counter
-      }
-      else if ((tData1 == 'Z') && (tData2 == '1'))
-      {                                        // MMU Filament Loaded
-                                               //********************
-        lcd_setstatus("ERR: Filament Loaded"); // 20 Chars
-        mmu_last_response = _millis();         // Update last response counter
-      }
-      else if ((tData1 == 'X') && (tData2 == '1'))
-      {                                        // MMU Setup Menu
-                                               //********************
-        lcd_setstatus("   MMU Setup Menu   "); // 20 Chars
-        mmuIdleFilamentTesting = false;
-        mmu_last_response = _millis(); // Update last response counter
-      }
-      else if ((tData1 == 'X') && (tData2 == '2'))
-      {                                        // MMU Adj Bowden Len
-                                               //********************
-        lcd_setstatus("MMU Adj BowLen/Bond "); // 20 Chars
-        mmu_last_response = _millis();         // Update last response counter
-      }
-      else if ((tData1 == 'X') && (tData2 == '5'))
-      {                                        // MMU Setup Menu: Unlock EEPROM
-                                               //********************
-        lcd_setstatus(" MMU Unlock EEPROM  "); // 20 Chars
-        mmu_last_response = _millis();         // Update last response counter
-      }
-      else if ((tData1 == 'X') && (tData2 == '6'))
-      {                                        // MMU Setup Menu: Clr Unlocked EEPROM
-                                               //********************
-        lcd_setstatus("Clr EEPROM(unlocked)"); // 20 Chars
-        mmu_last_response = _millis();         // Update last response counter
-      }
-      else if ((tData1 == 'X') && (tData2 == '7'))
-      {                                   // MMU Setup Menu: Exit
-                                          //********************
-        lcd_setstatus("Exit Setup Menu"); // 20 Chars
-        lcd_return_to_status();
-        lcd_update_enable(true);
-        mmu_last_response = _millis(); // Update last response counter
-      }
-      else if (tData1 == 'B')
-      { // MMU Adj Fsensor to Bondtech Length
-        //********************
-        lcd_update_enable(false);
-        lcd_clear(); //********************
-        lcd_set_cursor(0, 0);
-        lcd_puts_P(_i("L:  +1mm (Extrude)  "));
-        lcd_set_cursor(0, 1);
-        lcd_puts_P(_i("M:Unload Save & Exit"));
-        lcd_set_cursor(0, 2);
-        lcd_puts_P(_i("R:  -1mm (Retract)  "));
-        lcd_set_cursor(0, 3);
-        lcd_puts_P(_i("Current mm: "));
-        lcd_set_cursor(12, 3);
-        lcd_print((tData2 << 8) | (tData3));
-        mmu_last_response = _millis(); // Update last response counter
-      }
-      else if (tData1 == 'V')
-      { // MMU Adj Bowden Len: Loaded Message
-        //********************
-        lcd_update_enable(false);
-        lcd_clear(); //********************
-        lcd_set_cursor(0, 0);
-        lcd_puts_P(_i("L: +2mm (Extrude)   "));
-        lcd_set_cursor(0, 1);
-        lcd_puts_P(_i("M:Unload(Save/Retry)"));
-        lcd_set_cursor(0, 2);
-        lcd_puts_P(_i("R: -2mm (Retract)   "));
-        lcd_set_cursor(0, 3);
-        lcd_puts_P(_i("Current mm: "));
-        lcd_set_cursor(12, 3);
-        lcd_print((tData2 << 8) | (tData3));
-        mmu_last_response = _millis(); // Update last response counter
-      }
-      else if (tData1 == 'W')
-      { // MMU Adj Bowden Len: Unloaded Message
-        //********************
-        lcd_update_enable(false);
-        lcd_clear();                       //********************
-        lcd_set_cursor(0, 0); lcd_puts_P(_i("L:   Save & Exit    "));
-        lcd_set_cursor(0, 1);
-        lcd_puts_P(_i("M:BowLen Load2Check "));
-        lcd_set_cursor(0, 2);
-        lcd_puts_P(_i("                    ")); //R:Set BondTech Steps"));
-        lcd_set_cursor(0, 3);
-        lcd_puts_P(_i("Current mm: "));
-        lcd_set_cursor(12, 3);
-        lcd_print((tData2 << 8) | (tData3));
-        mmu_last_response = _millis(); // Update last response counter
-      }
-      else if (tData1 == 'T')
-      { // MMU Report ToolChange Count
-        toolChanges = ((tData2 << 8) | (tData3));
-        printf_P(PSTR("MMU => MK3 '@toolChange:%d'\n"), toolChanges);
-        mmu_last_response = _millis(); // Update last response counter
-      }
-    } // End of mmu_state > S::Disabled
+      /*lcd_update_enable(false);
+      lcd_clear();                       //********************
+      lcd_set_cursor(0, 0); lcd_puts_P(_i("********************"));
+      lcd_set_cursor(0, 1); lcd_puts_P(_i("*      RESET       *"));
+      lcd_set_cursor(0, 2); lcd_puts_P(_i("*     PRINTER!     *"));
+      lcd_set_cursor(0, 3); lcd_puts_P(_i("********************"));
+      */
+    }
+    else if ((tData1 == 'Z') && (tData2 == 'L') && (tData3 == '1'))
+    {                                        // MMU Loading Failed
+                                              //********************
+      lcd_setstatus("MMU Load Failed @MMU"); // 20 Chars
+      #ifdef OCTO_NOTIFICATIONS_ON
+      printf_P(PSTR("// action:mmuFailedLoad1\n"));
+      #endif                                 // OCTO_NOTIFICATIONS_ON
+      mmu_last_response = _millis(); // Update last response counter
+    }
+    else if ((tData1 == 'Z') && (tData2 == 'L') && (tData3 == '2'))
+    {                                        // MMU Loading Failed
+                                              //********************
+      lcd_setstatus("MMU Load Failed @MK3"); // 20 Chars
+      #ifdef OCTO_NOTIFICATIONS_ON
+      printf_P(PSTR("// action:mmuFailedLoad2\n"));
+      #endif // OCTO_NOTIFICATIONS_ON
+      mmu_loading_flag = false;
+      mmu_state = S::Wait;
+      mmu_last_response = _millis(); // Update last response counter
+    }
+    else if ((tData1 == 'Z') && (tData2 == 'U'))
+    {                                        // MMU Unloading Failed
+                                              //********************
+      lcd_setstatus(" MMU Unload Failed  "); // 20 Chars
+      #ifdef OCTO_NOTIFICATIONS_ON
+      printf_P(PSTR("// action:mmuFailedUnload\n"));
+      #endif                                 // OCTO_NOTIFICATIONS_ON
+      mmu_last_response = _millis(); // Update last response counter
+    }
+    else if ((tData1 == 'Z') && (tData2 == '1'))
+    {                                        // MMU Filament Loaded
+                                              //********************
+      lcd_setstatus("ERR: Filament Loaded"); // 20 Chars
+      mmu_last_response = _millis();         // Update last response counter
+    }
+    else if ((tData1 == 'X') && (tData2 == '1'))
+    {                                        // MMU Setup Menu
+                                              //********************
+      lcd_setstatus("   MMU Setup Menu   "); // 20 Chars
+      mmu_last_response = _millis(); // Update last response counter
+    }
+    else if ((tData1 == 'X') && (tData2 == '2'))
+    {                                        // MMU Adj Bowden Len
+                                              //********************
+      lcd_setstatus("MMU Adj BowLen/Bond "); // 20 Chars
+      mmu_last_response = _millis();         // Update last response counter
+    }
+    else if ((tData1 == 'X') && (tData2 == '5'))
+    {                                        // MMU Setup Menu: Unlock EEPROM
+                                              //********************
+      lcd_setstatus(" MMU Unlock EEPROM  "); // 20 Chars
+      mmu_last_response = _millis();         // Update last response counter
+    }
+    else if ((tData1 == 'X') && (tData2 == '6'))
+    {                                        // MMU Setup Menu: Clr Unlocked EEPROM
+                                              //********************
+      lcd_setstatus("Clr EEPROM(unlocked)"); // 20 Chars
+      mmu_last_response = _millis();         // Update last response counter
+    }
+    else if ((tData1 == 'X') && (tData2 == '7'))
+    {                                   // MMU Setup Menu: Exit
+                                        //********************
+      lcd_setstatus("Exit Setup Menu"); // 20 Chars
+      lcd_return_to_status();
+      lcd_update_enable(true);
+      mmu_last_response = _millis(); // Update last response counter
+    }
+    else if (tData1 == 'B')
+    { // MMU Adj Fsensor to Bondtech Length
+      //********************
+      lcd_update_enable(false);
+      lcd_clear(); //********************
+      lcd_set_cursor(0, 0);
+      lcd_puts_P(_i("L:  +1mm (Extrude)  "));
+      lcd_set_cursor(0, 1);
+      lcd_puts_P(_i("M:Unload Save & Exit"));
+      lcd_set_cursor(0, 2);
+      lcd_puts_P(_i("R:  -1mm (Retract)  "));
+      lcd_set_cursor(0, 3);
+      lcd_puts_P(_i("Current mm: "));
+      lcd_set_cursor(12, 3);
+      lcd_print((tData2 << 8) | (tData3));
+      mmu_last_response = _millis(); // Update last response counter
+    }
+    else if (tData1 == 'V')
+    { // MMU Adj Bowden Len: Loaded Message
+      //********************
+      lcd_update_enable(false);
+      lcd_clear(); //********************
+      lcd_set_cursor(0, 0);
+      lcd_puts_P(_i("L: +2mm (Extrude)   "));
+      lcd_set_cursor(0, 1);
+      lcd_puts_P(_i("M:Unload(Save/Retry)"));
+      lcd_set_cursor(0, 2);
+      lcd_puts_P(_i("R: -2mm (Retract)   "));
+      lcd_set_cursor(0, 3);
+      lcd_puts_P(_i("Current mm: "));
+      lcd_set_cursor(12, 3);
+      lcd_print((tData2 << 8) | (tData3));
+      mmu_last_response = _millis(); // Update last response counter
+    }
+    else if (tData1 == 'W')
+    { // MMU Adj Bowden Len: Unloaded Message
+      //********************
+      lcd_update_enable(false);
+      lcd_clear();                       //********************
+      lcd_set_cursor(0, 0); lcd_puts_P(_i("L:   Save & Exit    "));
+      lcd_set_cursor(0, 1);
+      lcd_puts_P(_i("M:BowLen Load2Check "));
+      lcd_set_cursor(0, 2);
+      lcd_puts_P(_i("                    ")); //R:Set BondTech Steps"));
+      lcd_set_cursor(0, 3);
+      lcd_puts_P(_i("Current mm: "));
+      lcd_set_cursor(12, 3);
+      lcd_print((tData2 << 8) | (tData3));
+      mmu_last_response = _millis(); // Update last response counter
+    }
+    else if (tData1 == 'T')
+    { // MMU Report ToolChange Count
+      toolChanges = ((tData2 << 8) | (tData3));
+      printf_P(PSTR("MMU => MK3 '@toolChange:%d'\n"), toolChanges);
+      mmu_last_response = _millis(); // Update last response counter
+    }
+  } // End of mmu_state > S::Disabled
 
 
 	switch (mmu_state)
@@ -360,10 +367,10 @@ void mmu_loop(void)
 	case S::Init:
     if ((tData1 == 'S') && (tData2 == 'T') && (tData3 == 'R'))
     {
-#ifdef MMU_DEBUG
+      #ifdef MMU_DEBUG
       puts_P(PSTR("MMU => MK3 'start'"));
       puts_P(PSTR("MK3 => MMU 'S1'"));
-#endif                                 //MMU_DEBUG
+      #endif                                 //MMU_DEBUG
       mmu_last_response = _millis(); // Update last response counter
       uart2_txPayload((unsigned char *)"S1-");
       mmu_state = S::GetVer;
@@ -375,48 +382,42 @@ void mmu_loop(void)
     } // End of if STR
     return; // Exit method.
   case S::GetVer:
-    if (confPayload) {
-      mmu_version = ((tData1 << 8) | (tData2));
-      printf_P(PSTR("MMU => MK3 '%d'\n"), mmu_version);
-  #ifdef MMU_DEBUG
-      puts_P(PSTR("MK3 => MMU 'S2'"));
-  #endif //MMU_DEBUG
-      uart2_txPayload((unsigned char *)"S2-");
-      mmu_state = S::GetBN;
-    }
+    mmu_version = ((tData1 << 8) | (tData2));
+    printf_P(PSTR("MMU => MK3 '%d'\n"), mmu_version);
+    #ifdef MMU_DEBUG
+    puts_P(PSTR("MK3 => MMU 'S2'"));
+    #endif //MMU_DEBUG
+    uart2_txPayload((unsigned char *)"S2-");
+    mmu_state = S::GetBN;
     return; // Exit method.
   case S::GetBN:
-    if (confPayload) {
-      mmu_buildnr = ((tData1 << 8) | (tData2));
-      printf_P(PSTR("MMU => MK3 '%d'\n"), mmu_buildnr);
-      bool version_valid = mmu_check_version();
-      if (!version_valid)
-        mmu_show_warning();
-      else
-        puts_P(PSTR("MMU version valid"));
-      uart2_txPayload((unsigned char *)"S3-");
-      mmu_state = S::GetActExt;
-    }
+    mmu_buildnr = ((tData1 << 8) | (tData2));
+    printf_P(PSTR("MMU => MK3 '%d'\n"), mmu_buildnr);
+    bool version_valid = mmu_check_version();
+    if (!version_valid)
+      mmu_show_warning();
+    else
+      puts_P(PSTR("MMU version valid"));
+    uart2_txPayload((unsigned char *)"S3-");
+    mmu_state = S::GetActExt;
     return; // Exit method.
   case S::GetActExt:
-    if (confPayload) {
-      tmp_extruder = tData3;
-      mmu_extruder = tmp_extruder;
-      printf_P(PSTR("MMU => MK3 'Active Extruder:%d'\n"), tmp_extruder + 1);
-#ifdef MMU_DEBUG
-      puts_P(PSTR("MK3 => MMU 'P0'"));
-#endif //MMU_DEBUG
-      uart2_txPayload((unsigned char *)"P0-");
-      mmu_state = S::FindaInit;
-    }
+    tmp_extruder = tData3;
+    mmu_extruder = tmp_extruder;
+    printf_P(PSTR("MMU => MK3 'Active Extruder:%d'\n"), tmp_extruder + 1);
+    #ifdef MMU_DEBUG
+    puts_P(PSTR("MK3 => MMU 'P0'"));
+    #endif //MMU_DEBUG
+    uart2_txPayload((unsigned char *)"P0-");
+    mmu_state = S::FindaInit;
     return; // Exit method.
   case S::FindaInit:
     if ((tData1 == 'P') && (tData2 == 'K'))
     {
       mmu_finda = tData3;
-#ifdef MMU_DEBUG
+      #ifdef MMU_DEBUG
       printf_P(PSTR("MMU => MK3 'PK%d'\n"), mmu_finda);
-#endif //MMU_DEBUG
+      #endif //MMU_DEBUG
       puts_P(PSTR("MMU - ENABLED"));
       mmu_enabled = true;
       mmu_state = S::Idle;
@@ -428,11 +429,8 @@ void mmu_loop(void)
       if ((mmu_cmd >= MmuCmd::T0) && (mmu_cmd <= MmuCmd::T4))
       {
         filament = mmu_cmd - MmuCmd::T0;
-        mmuIdleFilamentTesting = false;
-        unsigned char tempTxCMD[3] = {'T', (uint8_t)filament, BLK};
-        //toolChanges++;
-        //printf_P(PSTR("MK3 => MMU 'T%d @toolChange:%d'\n"), filament, toolChanges);
         printf_P(PSTR("MK3 => MMU 'T%d'\n"), filament);
+        unsigned char tempTxCMD[3] = {'T', (uint8_t)filament, BLK};
         uart2_txPayload(tempTxCMD);
         mmu_state = S::Wait;
       }
@@ -455,17 +453,16 @@ void mmu_loop(void)
       {
         if (PIN_GET(IR_SENSOR_PIN) == 0) //filament is still detected by idler sensor, printer helps with unlading 
         {
-            if (can_extrude())
-            {
-                        printf_P(PSTR("Unload 1\n"));
-                        current_position[E_AXIS] = current_position[E_AXIS] - MMU_LOAD_FEEDRATE * MMU_LOAD_TIME_MS*0.001;
-                        plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
-                        st_synchronize();
-            }
+          if (can_extrude())
+          {
+            printf_P(PSTR("Unload 1\n"));
+            current_position[E_AXIS] = current_position[E_AXIS] - MMU_LOAD_FEEDRATE * MMU_LOAD_TIME_MS*0.001;
+            plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
+            st_synchronize();
+          }
         }
         printf_P(PSTR("MK3 => MMU 'U0'\n"));
         uart2_txPayload((unsigned char *)"U0-");
-        mmuIdleFilamentTesting = true;
         //toolChanges = 0;
         mmu_state = S::Wait;
       }
@@ -523,14 +520,14 @@ void mmu_loop(void)
     if ((tData1 == 'P') && (tData2 == 'K'))
     {
       mmu_finda = tData3;
-#ifdef MMU_DEBUG
+      #ifdef MMU_DEBUG
       printf_P(PSTR("MMU => MK3 'PK%d'\n"), mmu_finda);
-#endif //MMU_DEBUG
+      #endif //MMU_DEBUG
       if (!mmu_finda && CHECK_FSENSOR && fsensor_enabled)
       {
-#ifdef OCTO_NOTIFICATIONS_ON
+        #ifdef OCTO_NOTIFICATIONS_ON
         printf_P(PSTR("// action:m600\n"));
-#endif // OCTO_NOTIFICATIONS_ON
+        #endif // OCTO_NOTIFICATIONS_ON
         fsensor_stop_and_save_print();
         enquecommand_front_P(PSTR("PRUSA fsensor_recover")); //then recover
         ad_markDepleted(mmu_extruder);
@@ -548,8 +545,14 @@ void mmu_loop(void)
       if (mmu_cmd == MmuCmd::None)
 				mmu_ready = true;
     }
-    else if (((mmu_last_response + 3) < _millis()) && !mmu_loading_flag)
+    else if (((mmu_last_response + MMU_P0_TIMEOUT) < _millis()))
+    {
+      txRESEND = false;
+      confirmedPayload = false;
+      startRxFlag = false;
+      pendingACK = false;
       mmu_state = S::Idle;  // RMM was Wait
+    }
     return; // Exit method.
   case S::Wait:
     if (mmu_idl_sens)
@@ -587,26 +590,26 @@ void mmu_loop(void)
     }
     return; // Exit method.
   }
-}
+} // End of mmu_loop() method.
 
 void mmu_reset(void)
 {
-#ifdef MMU_HWRESET //HW - pulse reset pin
+    #ifdef MMU_HWRESET //HW - pulse reset pin
   digitalWrite(MMU_RST_PIN, LOW);
   _delay_us(500);
   printf_P(PSTR("MK3S => MMU2S : HWR RESET\n"));
   digitalWrite(MMU_RST_PIN, HIGH);
-#else //SW - send X0 command
+  #else //SW - send X0 command
   uart2_txPayload((unsigned char *)"X0-");
-#endif
-}
+  #endif
+} // End of mmu_reset() method.
 
 void mmu_set_filament_type(uint8_t extruder, uint8_t filament)
 {
   printf_P(PSTR("MK3 => 'F%d %d'\n"), extruder, filament);
   unsigned char tempFx[3] = {'F', extruder, filament};
   uart2_txPayload(tempFx);
-}
+} // End of mmu_set_filament_type() method.
 
 //! @brief Enqueue MMUv2 command
 //!
@@ -617,9 +620,8 @@ void mmu_command(MmuCmd cmd)
 {
   if (((cmd >= MmuCmd::T0) && (cmd <= MmuCmd::T4)) || ((cmd >= MmuCmd::E0) && (cmd <= MmuCmd::E4)))
   {
-    shutdownE0();
+    disable_e0();
   }
-  if ((cmd >= MmuCmd::T0) && (cmd <= MmuCmd::T4))
   mmu_last_cmd = mmu_cmd;
   mmu_cmd = cmd;
   mmu_ready = false;
@@ -632,7 +634,7 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
   current_position[E_AXIS] -= 70;
   plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], _filament_type_speed, active_extruder);
   st_synchronize();
-  shutdownE0();
+  disable_e0();
 }
 
 static void get_response_print_info(uint8_t move)
@@ -675,7 +677,7 @@ bool mmu_get_response(uint8_t move)
 
 		switch (move) {
 			case MMU_LOAD_MOVE:
-			    mmu_loading_flag = true;
+			  mmu_loading_flag = true;
 				if (can_extrude()) mmu_load_step();
 				//don't rely on "ok" signal from mmu unit; if filament detected by idler sensor during loading stop loading movements to prevent infinite loading
 				if (PIN_GET(IR_SENSOR_PIN) == 0) move = MMU_NO_MOVE;
@@ -683,13 +685,13 @@ bool mmu_get_response(uint8_t move)
 			case MMU_UNLOAD_MOVE:
 				if (PIN_GET(IR_SENSOR_PIN) == 0) //filament is still detected by idler sensor, printer helps with unlading 
 				{
-				    if (can_extrude())
-				    {
-                        printf_P(PSTR("Unload 1\n"));
-                        current_position[E_AXIS] = current_position[E_AXIS] - MMU_LOAD_FEEDRATE * MMU_LOAD_TIME_MS*0.001;
-                        plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
-                        st_synchronize();
-				    }
+          if (can_extrude())
+          {
+              printf_P(PSTR("Unload 1\n"));
+              current_position[E_AXIS] = current_position[E_AXIS] - MMU_LOAD_FEEDRATE * MMU_LOAD_TIME_MS*0.001;
+              plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
+              st_synchronize();
+          }
 				}
 				else //filament was unloaded from idler, no additional movements needed 
 				{ 
@@ -759,7 +761,7 @@ void manage_response(bool move_axes, bool turn_off_nozzle, uint8_t move)
     response = mmu_get_response(move); //wait for "ok" from mmu
     if (!response)
     {               //no "ok" was received in reserved time frame, user will fix the issue on mmu unit
-      shutdownE0(); // Drop E0 Currents to 0.
+      disable_e0(); // Drop E0 Currents to 0.
       if (!mmu_print_saved)
       { //first occurence, we are saving current position, park print head in certain position and disable nozzle heater
         if (lcd_update_enabled)
@@ -769,9 +771,9 @@ void manage_response(bool move_axes, bool turn_off_nozzle, uint8_t move)
         }
         st_synchronize();
         mmu_print_saved = true;
-#ifdef OCTO_NOTIFICATIONS_ON
+        #ifdef OCTO_NOTIFICATIONS_ON
         printf_P(PSTR("// action:mmuAttention\n"));
-#endif // OCTO_NOTIFICATIONS_ON
+        #endif // OCTO_NOTIFICATIONS_ON
         printf_P(PSTR("MMU not responding\n"));
         hotend_temp_bckp = degTargetHotend(active_extruder);
         if (move_axes)
@@ -870,8 +872,7 @@ void manage_response(bool move_axes, bool turn_off_nozzle, uint8_t move)
       }
     }
   }
-  if (lcd_update_was_enabled)
-    lcd_update_enable(true);
+  if (lcd_update_was_enabled) lcd_update_enable(true);
   shutdownE0(false); // Reset E0 Currents.
 }
 
@@ -930,7 +931,7 @@ void mmu_M600_wait_and_beep()
 {
   //Beep and wait for user to remove old filament and prepare new filament for load
 
-  shutdownE0();
+  disable_e0();
   float hotend_temp_bckp = degTargetHotend(active_extruder);
   setAllTargetHotends(0);
   KEEPALIVE_STATE(PAUSED_FOR_USER);

@@ -545,19 +545,13 @@ FORCE_INLINE void stepper_next_block()
     }
     if ((out_bits & (1 << E_AXIS)) != 0) { // -direction
 #ifndef LIN_ADVANCE
-      WRITE(E0_DIR_PIN, 
-  #ifdef SNMM
-        (mmu_extruder == 0 || mmu_extruder == 2) ? !INVERT_E0_DIR :
-  #endif // SNMM
+      WRITE(E0_DIR_PIN,
         INVERT_E0_DIR);
 #endif /* LIN_ADVANCE */
       count_direction[E_AXIS] = -1;
     } else { // +direction
 #ifndef LIN_ADVANCE
       WRITE(E0_DIR_PIN,
-  #ifdef SNMM
-        (mmu_extruder == 0 || mmu_extruder == 2) ? INVERT_E0_DIR :
-  #endif // SNMM
         !INVERT_E0_DIR);
 #endif /* LIN_ADVANCE */
       count_direction[E_AXIS] = 1;
@@ -896,11 +890,7 @@ FORCE_INLINE void isr() {
 		bool neg = e_steps < 0;
         {
           bool dir =
-        #ifdef SNMM
-            (neg == (mmu_extruder & 1))
-        #else
             neg
-        #endif
             ? INVERT_E0_DIR : !INVERT_E0_DIR; //If we have SNMM, reverse every second extruder.
           WRITE_NC(E0_DIR_PIN, dir);
           if (neg)
@@ -1615,65 +1605,3 @@ void microstep_init()
   for(int i=0;i<=4;i++) microstep_mode(i,microstep_modes[i]);
   #endif
 }
-
-
-#ifndef TMC2130
-
-void microstep_ms(uint8_t driver, int8_t ms1, int8_t ms2)
-{
-  if(ms1 > -1) switch(driver)
-  {
-    case 0: digitalWrite( X_MS1_PIN,ms1); break;
-    case 1: digitalWrite( Y_MS1_PIN,ms1); break;
-    case 2: digitalWrite( Z_MS1_PIN,ms1); break;
-    case 3: digitalWrite(E0_MS1_PIN,ms1); break;
-    #if defined(E1_MS1_PIN) && E1_MS1_PIN > -1
-    case 4: digitalWrite(E1_MS1_PIN,ms1); break;
-    #endif
-  }
-  if(ms2 > -1) switch(driver)
-  {
-    case 0: digitalWrite( X_MS2_PIN,ms2); break;
-    case 1: digitalWrite( Y_MS2_PIN,ms2); break;
-    case 2: digitalWrite( Z_MS2_PIN,ms2); break;
-    case 3: digitalWrite(E0_MS2_PIN,ms2); break;
-    #if defined(E1_MS2_PIN) && E1_MS2_PIN > -1
-    case 4: digitalWrite(E1_MS2_PIN,ms2); break;
-    #endif
-  }
-}
-
-void microstep_mode(uint8_t driver, uint8_t stepping_mode)
-{
-  switch(stepping_mode)
-  {
-    case 1: microstep_ms(driver,MICROSTEP1); break;
-    case 2: microstep_ms(driver,MICROSTEP2); break;
-    case 4: microstep_ms(driver,MICROSTEP4); break;
-    case 8: microstep_ms(driver,MICROSTEP8); break;
-    case 16: microstep_ms(driver,MICROSTEP16); break;
-  }
-}
-
-void microstep_readings()
-{
-      SERIAL_PROTOCOLPGM("MS1,MS2 Pins\n");
-      SERIAL_PROTOCOLPGM("X: ");
-      SERIAL_PROTOCOL(   digitalRead(X_MS1_PIN));
-      SERIAL_PROTOCOLLN( digitalRead(X_MS2_PIN));
-      SERIAL_PROTOCOLPGM("Y: ");
-      SERIAL_PROTOCOL(   digitalRead(Y_MS1_PIN));
-      SERIAL_PROTOCOLLN( digitalRead(Y_MS2_PIN));
-      SERIAL_PROTOCOLPGM("Z: ");
-      SERIAL_PROTOCOL(   digitalRead(Z_MS1_PIN));
-      SERIAL_PROTOCOLLN( digitalRead(Z_MS2_PIN));
-      SERIAL_PROTOCOLPGM("E0: ");
-      SERIAL_PROTOCOL(   digitalRead(E0_MS1_PIN));
-      SERIAL_PROTOCOLLN( digitalRead(E0_MS2_PIN));
-      #if defined(E1_MS1_PIN) && E1_MS1_PIN > -1
-      SERIAL_PROTOCOLPGM("E1: ");
-      SERIAL_PROTOCOL(   digitalRead(E1_MS1_PIN));
-      SERIAL_PROTOCOLLN( digitalRead(E1_MS2_PIN));
-      #endif
-}
-#endif //TMC2130

@@ -176,29 +176,21 @@ void tmc2130_init()
 	{
 		tmc2130_setup_chopper(axis, tmc2130_mres[axis], tmc2130_current_h[axis], tmc2130_current_r[axis]);
 		tmc2130_wr(axis, TMC2130_REG_TPOWERDOWN, 0x00000000);
-#ifndef TMC2130_STEALTH_Z
-		tmc2130_wr(axis, TMC2130_REG_GCONF, TMC2130_GCONF_SGSENS);
-#else //TMC2130_STEALTH_Z
 		tmc2130_wr(axis, TMC2130_REG_COOLCONF, (((uint32_t)tmc2130_sg_thr[axis]) << 16));
 		tmc2130_wr(axis, TMC2130_REG_TCOOLTHRS, (tmc2130_mode == TMC2130_MODE_SILENT)?0:__tcoolthrs(axis));
 		tmc2130_wr(axis, TMC2130_REG_GCONF, (tmc2130_mode == TMC2130_MODE_SILENT)?TMC2130_GCONF_SILENT:TMC2130_GCONF_SGSENS);
 		tmc2130_wr_PWMCONF(axis, tmc2130_pwm_ampl[axis], tmc2130_pwm_grad[axis], tmc2130_pwm_freq[axis], tmc2130_pwm_auto[axis], 0, 0);
 		tmc2130_wr_TPWMTHRS(axis, TMC2130_TPWMTHRS);
-#endif //TMC2130_STEALTH_Z
 	}
 	for (uint_least8_t axis = 3; axis < 4; axis++) // E axis
 	{
 		tmc2130_setup_chopper(axis, tmc2130_mres[axis], tmc2130_current_h[axis], tmc2130_current_r[axis]);
 		tmc2130_wr(axis, TMC2130_REG_TPOWERDOWN, 0x00000000);
-#ifndef TMC2130_STEALTH_E
-		tmc2130_wr(axis, TMC2130_REG_GCONF, TMC2130_GCONF_SGSENS);
-#else //TMC2130_STEALTH_E
 		tmc2130_wr(axis, TMC2130_REG_COOLCONF, (((uint32_t)tmc2130_sg_thr[axis]) << 16));
 		tmc2130_wr(axis, TMC2130_REG_TCOOLTHRS, 0);
 		tmc2130_wr(axis, TMC2130_REG_GCONF, TMC2130_GCONF_SILENT);
 		tmc2130_wr_PWMCONF(axis, tmc2130_pwm_ampl[axis], tmc2130_pwm_grad[axis], tmc2130_pwm_freq[axis], tmc2130_pwm_auto[axis], 0, 0);
 		tmc2130_wr_TPWMTHRS(axis, TMC2130_TPWMTHRS);
-#endif //TMC2130_STEALTH_E
 	}
 
 	tmc2130_sg_err[0] = 0;
@@ -326,11 +318,7 @@ void tmc2130_home_exit()
 			uint8_t mask = (X_AXIS_MASK << axis);
 			if (tmc2130_sg_homing_axes_mask & mask & (X_AXIS_MASK | Y_AXIS_MASK | Z_AXIS_MASK))
 			{
-#ifndef TMC2130_STEALTH_Z
-				if ((tmc2130_mode == TMC2130_MODE_SILENT) && (axis != Z_AXIS))
-#else //TMC2130_STEALTH_Z
 				if (tmc2130_mode == TMC2130_MODE_SILENT)
-#endif //TMC2130_STEALTH_Z
 				{
 					tmc2130_wr(axis, TMC2130_REG_GCONF, TMC2130_GCONF_SILENT); // Configuration back to stealthChop
 					tmc2130_wr(axis, TMC2130_REG_TCOOLTHRS, 0);

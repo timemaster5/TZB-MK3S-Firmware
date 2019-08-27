@@ -80,7 +80,7 @@ extern bool check_for_ir_sensor();
 extern void mmu_set_filament_type(uint8_t extruder, uint8_t filament);
 extern void mmu_command(MmuCmd cmd);
 extern bool mmu_get_response(uint8_t move);
-extern void manage_response(bool move_axes, bool turn_off_nozzle, uint8_t move = MMU_NO_MOVE);
+extern void manage_response(bool move_axes, bool turn_off_nozzle); //, uint8_t move = MMU_NO_MOVE);
 extern void mmu_load_to_nozzle();
 extern void mmu_M600_load_filament(bool automatic, float nozzle_temp);
 extern void mmu_wait_for_heater_blocking();
@@ -92,10 +92,10 @@ extern void load_all();
 extern void extr_unload_();
 
 extern void mmu_filament_ramming();
-extern void mmu_load_step(bool synchronize = true);
+//extern void mmu_load_step(bool synchronize = true);
 
 extern bool mmu_check_version();
 extern void mmu_show_warning();
 extern void lcd_mmu_load_to_nozzle(uint8_t filament_nr);
-extern void mmu_continue_loading(bool blocking);
+//extern void mmu_continue_loading(bool blocking);
 extern void mmu_eject_filament(uint8_t filament, bool recover);

@@ -7709,7 +7709,7 @@ Sigma_Exit:
 			{
 				st_synchronize();
 				mmu_command(MmuCmd::T0 + tmp_extruder);
-				manage_response(true, true, MMU_TCODE_MOVE);
+				manage_response(true, true); //, MMU_TCODE_MOVE);
 			}
 		}
 	  }
@@ -7717,7 +7717,8 @@ Sigma_Exit:
 	  	if (mmu_enabled) 
 		{
 			st_synchronize();
-			mmu_continue_loading(is_usb_printing  || (lcd_commands_type == LcdCommands::Layer1Cal));
+      mmu_command(MmuCmd::C0);
+			//mmu_continue_loading(is_usb_printing  || (lcd_commands_type == LcdCommands::Layer1Cal));
 			mmu_extruder = tmp_extruder; //filament change is finished
 			mmu_load_to_nozzle();
 		}
@@ -7752,8 +7753,9 @@ Sigma_Exit:
 			  else
 			  {
 				  mmu_command(MmuCmd::T0 + tmp_extruder);
-				  manage_response(true, true, MMU_TCODE_MOVE);
-		          mmu_continue_loading(is_usb_printing  || (lcd_commands_type == LcdCommands::Layer1Cal));
+				  manage_response(true, true); //, MMU_TCODE_MOVE);
+          mmu_command(MmuCmd::C0);
+		          //mmu_continue_loading(is_usb_printing  || (lcd_commands_type == LcdCommands::Layer1Cal));
 
 				  mmu_extruder = tmp_extruder; //filament change is finished
 

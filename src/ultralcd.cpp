@@ -7280,7 +7280,7 @@ static bool selftest_irsensor()
     {
         if (0 == (i % 32)) progress = lcd_selftest_screen(TestScreen::Fsensor, progress, 1, true, 0);
 
-        mmu_load_step(false);
+        //RMMTODO mmu_load_step(false);
         while (blocks_queued())
         {
             if (PIN_GET(IR_SENSOR_PIN) == 0)

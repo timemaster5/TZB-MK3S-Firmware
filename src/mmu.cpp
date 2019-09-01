@@ -140,6 +140,7 @@ void mmu_loop(void)
   printf_P(PSTR("MMU loop, state=%d\n"), (int)mmu_state);
 #endif //MMU_DEBUG
 
+  cli();
   // Copy volitale vars as local
   unsigned char tData1 = rxData1;
   unsigned char tData2 = rxData2;
@@ -147,6 +148,7 @@ void mmu_loop(void)
   unsigned char tData4 = rxData4;
   unsigned char tData5 = rxData5;
   bool confPayload = confirmedPayload;
+  sei();
 
   if (txACKNext)
     uart2_txACK();
@@ -404,7 +406,7 @@ void mmu_loop(void)
         printf_P(PSTR("MK3 => MMU 'C0'\n"));
         uart2_txPayload((unsigned char *)"C0---");
         mmu_state = S::Wait;
-        mmu_idl_sens = true;
+        //mmu_idl_sens = true;
       }
       else if (mmu_cmd == MmuCmd::U0)
       {
@@ -420,7 +422,6 @@ void mmu_loop(void)
         }
         printf_P(PSTR("MK3 => MMU 'U0'\n"));
         uart2_txPayload((unsigned char *)"U0---");
-        //toolChanges = 0;
         mmu_state = S::Wait;
       }
       else if ((mmu_cmd >= MmuCmd::E0) && (mmu_cmd <= MmuCmd::E4))
@@ -461,11 +462,12 @@ void mmu_loop(void)
       // RMMTODO - May need to get MMU2S to stop until C0 is received.
       mmu_idl_sens = false;
     }
-    if (mmu_idl_sens) mmu_load_step(false);
+    if (mmu_idl_sens) mmu_load_step();
     if ((tData1 == 'I') && (tData2 == 'R') && (tData3 == 'S') && (tData4 == 'E') && (tData5 == 'N'))
     {
       printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 IR Sensor'\n"));
-      mmu_load_step(false);
+      shutdownE0(false);  // Reset E0 Currents.
+      mmu_load_step();
       mmu_idl_sens = true;
     }
     if ((tData1 == 'P') && (tData2 == 'K'))
@@ -506,11 +508,12 @@ void mmu_loop(void)
       // RMMTODO - May need to get MMU2S to stop until C0 is received.
       mmu_idl_sens = false;
     }
-    if (mmu_idl_sens) mmu_load_step(false);
+    if (mmu_idl_sens) mmu_load_step();
     if ((tData1 == 'I') && (tData2 == 'R') && (tData3 == 'S') && (tData4 == 'E') && (tData5 == 'N'))
     {
       printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 IR Sensor'\n"));
-      mmu_load_step(false);
+      shutdownE0(false);  // Reset E0 Currents.
+      mmu_load_step();
       mmu_idl_sens = true;
     }
     if (tData1 == 'U')
@@ -556,7 +559,7 @@ void mmu_command(MmuCmd cmd)
 {
   if (((cmd >= MmuCmd::T0) && (cmd <= MmuCmd::T4)) || ((cmd >= MmuCmd::E0) && (cmd <= MmuCmd::E4)))
   {
-    disable_e0();
+    shutdownE0();
   }
   mmu_last_cmd = mmu_cmd;
   mmu_cmd = cmd;
@@ -566,10 +569,11 @@ void mmu_command(MmuCmd cmd)
 void mmu_unload_synced(uint16_t _filament_type_speed)
 {
   st_synchronize();
+  shutdownE0(false);
   current_position[E_AXIS] -= 70;
   plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], _filament_type_speed, active_extruder);
   st_synchronize();
-  disable_e0();
+  shutdownE0();
 }
 
 bool mmu_get_response(void)
@@ -584,18 +588,11 @@ bool mmu_get_response(void)
 	}
 	while (!mmu_ready)
 	{
-    mmu_loop;
-    /*if ((txRESEND) || (pendingACK && ((startTXTimeout + TXTimeout) < millis()))) {
-      txRESEND         = false;
-      confirmedPayload = false;
-      startRxFlag      = false;
-      uart2_txPayload(lastTxPayload);
-    }*/
-    if (((mmu_state == S::Wait) || (mmu_state == S::Idle) || mmu_idl_sens) && ((mmu_last_request + MMU_CMD_TIMEOUT) > millis())) {
+    delay(1);
+    mmu_loop();
+    if (((mmu_state == S::Wait) || (mmu_state == S::Idle)) && ((mmu_last_response + MMU_CMD_TIMEOUT) > millis())) {
       delay_keep_alive(100);
-    } else {
-      break;
-    }
+    } else break;
 	}
 	bool ret = mmu_ready;
 	mmu_ready = false;
@@ -799,7 +796,7 @@ void mmu_M600_wait_and_beep()
 {
   //Beep and wait for user to remove old filament and prepare new filament for load
 
-  disable_e0();
+  shutdownE0();
   float hotend_temp_bckp = degTargetHotend(active_extruder);
   setAllTargetHotends(0);
   KEEPALIVE_STATE(PAUSED_FOR_USER);
@@ -812,12 +809,9 @@ void mmu_M600_wait_and_beep()
   {
     manage_heater();
     manage_inactivity(true);
-
-#if BEEPER > 0
+    #if BEEPER > 0
     if (counterBeep == 500)
-    {
       counterBeep = 0;
-    }
     SET_OUTPUT(BEEPER);
     if (counterBeep == 0)
     {
@@ -828,12 +822,10 @@ void mmu_M600_wait_and_beep()
       }
     }
     if (counterBeep == 20)
-    {
       WRITE(BEEPER, LOW);
-    }
 
     counterBeep++;
-#endif //BEEPER > 0
+    #endif //BEEPER > 0
 
     delay_keep_alive(4);
   }

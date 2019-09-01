@@ -5,7 +5,6 @@
 
 #include "Timer.h"
 #include "system_timer.h"
-#include "Arduino.h"
 
 /**
  * @brief construct Timer

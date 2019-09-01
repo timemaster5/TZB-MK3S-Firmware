@@ -199,17 +199,17 @@ void mmu_loop(void)
     {                                        // MMU Loading Failed
                                              //********************
       lcd_setstatus("MMU Load Failed @MMU"); // 20 Chars
-#ifdef OCTO_NOTIFICATIONS_ON
+      #ifdef OCTO_NOTIFICATIONS_ON
       printf_P(PSTR("// action:mmuFailedLoad1\n"));
-#endif // OCTO_NOTIFICATIONS_ON
+      #endif // OCTO_NOTIFICATIONS_ON
     }
     else if ((tData1 == 'Z') && (tData2 == 'L') && (tData3 == '2'))
     {                                        // MMU Loading Failed
                                              //********************
       lcd_setstatus("MMU Load Failed @MK3"); // 20 Chars
-#ifdef OCTO_NOTIFICATIONS_ON
+      #ifdef OCTO_NOTIFICATIONS_ON
       printf_P(PSTR("// action:mmuFailedLoad2\n"));
-#endif // OCTO_NOTIFICATIONS_ON
+      #endif // OCTO_NOTIFICATIONS_ON
       mmu_idl_sens = false;
       mmu_state = S::Wait;
     }
@@ -217,9 +217,9 @@ void mmu_loop(void)
     {                                        // MMU Unloading Failed
                                              //********************
       lcd_setstatus(" MMU Unload Failed  "); // 20 Chars
-#ifdef OCTO_NOTIFICATIONS_ON
+      #ifdef OCTO_NOTIFICATIONS_ON
       printf_P(PSTR("// action:mmuFailedUnload\n"));
-#endif // OCTO_NOTIFICATIONS_ON
+      #endif // OCTO_NOTIFICATIONS_ON
     }
     else if ((tData1 == 'Z') && (tData2 == '1'))
     {                                        // MMU Filament Loaded
@@ -454,34 +454,31 @@ void mmu_loop(void)
     }
     return; // Exit method.
   case S::GetFinda:
-    if (mmu_idl_sens)
+    if (PIN_GET(IR_SENSOR_PIN) == 0 && mmu_idl_sens)
     {
-      if (PIN_GET(IR_SENSOR_PIN) == 0 && mmu_idl_sens)
-      {
-        uart2_txPayload((unsigned char *)"IRSEN");
-        printf_P(PSTR("MK3 => MMU 'Filament seen at extruder'\n"));
-        // RMMTODO - May need to get MMU2S to stop until C0 is received.
-        mmu_idl_sens = false;
-      }
+      uart2_txPayload((unsigned char *)"IRSEN");
+      printf_P(PSTR("MK3 => MMU 'Filament seen at extruder'\n"));
+      // RMMTODO - May need to get MMU2S to stop until C0 is received.
+      mmu_idl_sens = false;
     }
+    if (mmu_idl_sens) mmu_load_step(false);
     if ((tData1 == 'I') && (tData2 == 'R') && (tData3 == 'S') && (tData4 == 'E') && (tData5 == 'N'))
     {
       printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 IR Sensor'\n"));
-      //mmu_load_step(false);
-      //mmu_fil_loaded = true;
+      mmu_load_step(false);
       mmu_idl_sens = true;
     }
     if ((tData1 == 'P') && (tData2 == 'K'))
     {
       mmu_finda = tData3;
-#ifdef MMU_DEBUG
+      #ifdef MMU_DEBUG
       printf_P(PSTR("MMU => MK3 'PK%d'\n"), mmu_finda);
-#endif //MMU_DEBUG
+      #endif //MMU_DEBUG
       if (!mmu_finda && CHECK_FSENSOR && fsensor_enabled)
       {
-#ifdef OCTO_NOTIFICATIONS_ON
+        #ifdef OCTO_NOTIFICATIONS_ON
         printf_P(PSTR("// action:m600\n"));
-#endif // OCTO_NOTIFICATIONS_ON
+        #endif // OCTO_NOTIFICATIONS_ON
         fsensor_stop_and_save_print();
         enquecommand_front_P(PSTR("PRUSA fsensor_recover")); //then recover
         ad_markDepleted(mmu_extruder);
@@ -502,21 +499,18 @@ void mmu_loop(void)
       mmu_state = S::Idle; // RMM was Wait
     return;                // Exit method.
   case S::Wait:
-    if (mmu_idl_sens)
+    if (PIN_GET(IR_SENSOR_PIN) == 0 && mmu_idl_sens)
     {
-      if (PIN_GET(IR_SENSOR_PIN) == 0 && mmu_idl_sens)
-      {
-        uart2_txPayload((unsigned char *)"IRSEN");
-        printf_P(PSTR("MK3 => MMU 'Filament seen at extruder'\n"));
-        // RMMTODO - May need to get MMU2S to stop until C0 is received.
-        mmu_idl_sens = false;
-      }
+      uart2_txPayload((unsigned char *)"IRSEN");
+      printf_P(PSTR("MK3 => MMU 'Filament seen at extruder'\n"));
+      // RMMTODO - May need to get MMU2S to stop until C0 is received.
+      mmu_idl_sens = false;
     }
+    if (mmu_idl_sens) mmu_load_step(false);
     if ((tData1 == 'I') && (tData2 == 'R') && (tData3 == 'S') && (tData4 == 'E') && (tData5 == 'N'))
     {
       printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 IR Sensor'\n"));
-      //mmu_load_step(false);
-      //mmu_fil_loaded = true;
+      mmu_load_step(false);
       mmu_idl_sens = true;
     }
     if (tData1 == 'U')
@@ -524,7 +518,7 @@ void mmu_loop(void)
       mmu_unload_synced((tData2 << 8) | (tData3));
       printf_P(PSTR("MMU => MK3 Unload Feedrate: %d%d\n"), tData2, tData3);
     }
-    else if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == '-'))
+    else if ((tData1 == 'O') && (tData2 == 'K'))
     {
       printf_P(PSTR("MMU => MK3 'ok'\n"));
       mmu_ready = true;
@@ -578,35 +572,14 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
   disable_e0();
 }
 
-static void get_response_print_info(uint8_t move)
-{
-  printf_P(PSTR("mmu_get_response - begin move: "), move);
-  switch (move)
-  {
-  case MMU_LOAD_MOVE:
-    printf_P(PSTR("load\n"));
-    break;
-  case MMU_UNLOAD_MOVE:
-    printf_P(PSTR("unload\n"));
-    break;
-  case MMU_TCODE_MOVE:
-    printf_P(PSTR("T-code\n"));
-    break;
-  case MMU_NO_MOVE:
-    printf_P(PSTR("no move\n"));
-    break;
-  default:
-    printf_P(PSTR("error: unknown move\n"));
-    break;
-  }
-}
-
 bool mmu_get_response(void)
+
 {
   //	printf_P(PSTR("mmu_get_response - begin\n"));
 	KEEPALIVE_STATE(IN_PROCESS);
 	while (mmu_cmd != MmuCmd::None)
 	{
+    printf_P(PSTR("mmu_cmd != None\n"));
 		delay_keep_alive(100);
 	}
 	while (!mmu_ready)

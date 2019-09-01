@@ -73,6 +73,11 @@ extern int8_t lcd_show_multiscreen_message_two_choices_and_wait_P(const char *ms
 extern int8_t lcd_show_multiscreen_message_yes_no_and_wait_P(const char *msg, bool allow_timeouting = true, bool default_yes = false);
 // Ask the user to move the Z axis up to the end stoppers and let
 // the user confirm that it has been done.
+
+#ifndef TMC2130
+extern bool lcd_calibrate_z_end_stop_manual(bool only_z);
+#endif
+
 // Show the result of the calibration process on the LCD screen.
   extern void lcd_bed_calibration_show_result(BedSkewOffsetDetectionResultType result, uint8_t point_too_far_mask);
 
@@ -142,6 +147,14 @@ void lcd_commands();
 
 extern bool bSettings;                            // flag (i.e. 'fake parameter') for 'lcd_hw_setup_menu()' function
 void lcd_hw_setup_menu(void);                     // NOT static due to using inside "util" module ("nozzle_diameter_check()")
+
+
+void change_extr(int extr);
+
+#ifdef SNMM
+void extr_unload_all(); 
+void extr_unload_used();
+#endif //SNMM
 void extr_unload();
 
 enum class FilamentAction : uint_least8_t
@@ -192,6 +205,8 @@ uint8_t choose_menu_P(const char *header, const char *item, const char *last_ite
 void lcd_pinda_calibration_menu();
 void lcd_calibrate_pinda();
 void lcd_temp_calibration_set();
+
+void display_loading();
 
 #if !SDSORT_USES_RAM
 void lcd_set_degree();

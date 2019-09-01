@@ -75,7 +75,7 @@ ISR(M_USARTx_RX_vect)
 #endif //DEBUG_DUMP_TO_2ND_SERIAL
 	}
 }
-
+#ifndef SNMM
 ISR(USART1_RX_vect)
 {
 	// Test for a framing error.
@@ -96,6 +96,7 @@ ISR(USART1_RX_vect)
 #endif //DEBUG_DUMP_TO_2ND_SERIAL
 	}
 }
+#endif
 #endif
 
 // Public Methods //////////////////////////////////////////////////////////////
@@ -129,6 +130,8 @@ void MarlinSerial::begin(long baud)
   sbi(M_UCSRxB, M_RXENx);
   sbi(M_UCSRxB, M_TXENx);
   sbi(M_UCSRxB, M_RXCIEx);
+  
+#ifndef SNMM
 
   if (selectedSerialPort == 1) { //set up also the second serial port 
 	  if (useU2X) {
@@ -147,6 +150,7 @@ void MarlinSerial::begin(long baud)
 	  sbi(UCSR1B, TXEN1);
 	  sbi(UCSR1B, RXCIE1);	  
   }
+#endif
 }
 
 void MarlinSerial::end()
@@ -155,9 +159,11 @@ void MarlinSerial::end()
   cbi(M_UCSRxB, M_TXENx);
   cbi(M_UCSRxB, M_RXCIEx);
 
+#ifndef SNMM
   cbi(UCSR1B, RXEN1);
   cbi(UCSR1B, TXEN1);
   cbi(UCSR1B, RXCIE1);
+#endif
 }
 
 

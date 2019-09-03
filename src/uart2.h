@@ -16,7 +16,7 @@
 
 extern volatile unsigned char rxData1, rxData2, rxData3, rxData4, rxData5;
 extern volatile bool confirmedPayload, txNAKNext, txACKNext,
-       txRESEND, pendingACK;
+       txRESEND, pendingACK, MMU_IRSENS;
 extern unsigned long startTXTimeout;
 
 extern unsigned char lastTxPayload[5];

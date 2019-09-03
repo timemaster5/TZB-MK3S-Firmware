@@ -24,7 +24,7 @@
 #define MMU_TODELAY 100
 #define MMU_TIMEOUT 10
 #define MMU_CMD_TIMEOUT 300000ul //5min timeout for mmu commands (except P0)
-#define MMU_P0_TIMEOUT 3000ul    //timeout for P0 command: 3seconds
+#define MMU_P0_TIMEOUT 30000ul    //timeout for P0 command: 30seconds
 
 #ifdef MMU_HWRESET
 #define MMU_RST_PIN 76
@@ -61,7 +61,6 @@ bool mmu_enabled = false;
 bool mmu_ready = false;
 bool mmu_fil_loaded = false; //if true: blocks execution of duplicit T-codes
 bool isMMUPrintPaused = false;
-//bool mmuIR_SENSORLoading = false;
 int lastLoadedFilament = -10;
 uint16_t mmu_power_failures = 0;
 void shutdownE0(bool shutdown = true);
@@ -75,12 +74,35 @@ uint8_t mmu_filament_types[5] = {0, 0, 0, 0, 0};
 void mmu_unload_synced(uint16_t _filament_type_speed);
 
 //idler ir sensor
-static bool mmu_idl_sens = 0;
+static bool mmu_idl_sens = false;
 bool ir_sensor_detected = false;
 
 //if IR_SENSOR defined, always returns true
 //otherwise check for ir sensor and returns true if idler IR sensor was detected, otherwise returns false
-bool check_for_ir_sensor() { return true; }
+bool check_for_ir_sensor() 
+{
+#ifdef IR_SENSOR
+	return true;
+#else //IR_SENSOR
+
+	bool detected = false;
+	//if IR_SENSOR_PIN input is low and pat9125sensor is not present we detected idler sensor
+	if ((PIN_GET(IR_SENSOR_PIN) == 0) 
+#ifdef PAT9125
+		&& fsensor_not_responding
+#endif //PAT9125
+	) 
+	{		
+		detected = true;
+		//printf_P(PSTR("Idler IR sensor detected\n"));
+	}
+	else
+	{
+		//printf_P(PSTR("Idler IR sensor not detected\n"));
+	}
+	return detected;
+#endif //IR_SENSOR
+}
 
 static S mmu_state = S::Disabled; //int8_t mmu_state = 0;
 MmuCmd mmu_cmd = MmuCmd::None;
@@ -147,23 +169,11 @@ void mmu_loop(void)
   unsigned char tData5 = rxData5;
   bool confPayload = confirmedPayload;
   sei();
-
-  if (txACKNext)
-    uart2_txACK();
-  if (txNAKNext)
-    uart2_txACK(false);
-  if (txRESEND)
-    uart2_txPayload(lastTxPayload, true);
-  if (confPayload)
-    mmu_last_response = _millis();
-  else
-  {
-    tData1 = ' ';
-    tData2 = ' ';
-    tData3 = ' ';
-    tData4 = ' ';
-    tData5 = ' ';
-  }
+  if (txACKNext) uart2_txACK();
+  if (txNAKNext) uart2_txACK(false);
+  if (txRESEND) uart2_txPayload(lastTxPayload, true);
+  if (confPayload) mmu_last_response = _millis();
+  else { tData1 = ' '; tData2 = ' '; tData3 = ' '; tData4 = ' '; tData5 = ' '; }
 
   // All Notification & Status Updates between MK3S/MMU2S
   if (mmu_state > S::Disabled)
@@ -202,7 +212,7 @@ void mmu_loop(void)
       #ifdef OCTO_NOTIFICATIONS_ON
       printf_P(PSTR("// action:mmuFailedLoad2\n"));
       #endif // OCTO_NOTIFICATIONS_ON
-      mmu_idl_sens = false;
+      MMU_IRSENS = false;
       mmu_state = S::Wait; }
     else if ((tData1 == 'Z') && (tData2 == 'U')) { // MMU Unloading Failed
                                              //********************
@@ -360,7 +370,8 @@ void mmu_loop(void)
         printf_P(PSTR("MK3 => MMU 'T%d'\n"), filament);
         unsigned char tempTxCMD[5] = {'T', (uint8_t)filament, BLK, BLK, BLK};
         uart2_txPayload(tempTxCMD);
-        //mmuIR_SENSORLoading = true;
+        mmu_fil_loaded = true;
+        mmu_idl_sens = true;
         mmu_state = S::Wait;
       }
       else if ((mmu_cmd >= MmuCmd::L0) && (mmu_cmd <= MmuCmd::L4))
@@ -376,30 +387,21 @@ void mmu_loop(void)
         printf_P(PSTR("MK3 => MMU 'C0'\n"));
         uart2_txPayload((unsigned char *)"C0---");
         mmu_state = S::Wait;
-        //mmu_idl_sens = true;
       }
       else if (mmu_cmd == MmuCmd::U0)
       {
-        if (PIN_GET(IR_SENSOR_PIN) == 0) //filament is still detected by idler sensor, printer helps with unlading
-        {
-          if (can_extrude())
-          {
-            printf_P(PSTR("Unload 1\n"));
-            current_position[E_AXIS] = current_position[E_AXIS] - MMU_LOAD_FEEDRATE * MMU_LOAD_TIME_MS * 0.001;
-            plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
-            st_synchronize();
-          }
-        }
         printf_P(PSTR("MK3 => MMU 'U0'\n"));
         uart2_txPayload((unsigned char *)"U0---");
+        mmu_fil_loaded = false;
         mmu_state = S::Wait;
       }
-      else if ((mmu_cmd >= MmuCmd::E0) && (mmu_cmd <= MmuCmd::E4))
+      else if (((mmu_cmd >= MmuCmd::E0) && (mmu_cmd <= MmuCmd::E4)) || ((mmu_cmd >= MmuCmd::K0) && (mmu_cmd <= MmuCmd::K4)))
       {
         filament = mmu_cmd - MmuCmd::E0;
         printf_P(PSTR("MK3 => MMU 'E%d'\n"), filament);
         unsigned char tempExCMD[5] = {'E', (uint8_t)filament, BLK, BLK, BLK};
         uart2_txPayload(tempExCMD);
+        mmu_fil_loaded = false;
         mmu_state = S::Wait;
       }
       else if (mmu_cmd == MmuCmd::R0)
@@ -420,19 +422,14 @@ void mmu_loop(void)
     }
     else if (((mmu_last_response + 300) < _millis()) && !mmu_idl_sens)
     {
+      #ifndef IR_SENSOR
+			if(check_for_ir_sensor()) ir_sensor_detected = true;
+      #endif //IR_SENSOR not defined
       uart2_txPayload((unsigned char *)"P0---");
       mmu_state = S::GetFinda;
     }
     return; // Exit method.
   case S::GetFinda:
-    checkIR_SENSOR();
-    if ((tData1 == 'I') && (tData2 == 'R') && (tData3 == 'S') && (tData4 == 'E') && (tData5 == 'N'))
-    {
-      printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 IR Sensor'\n"));
-      // shutdownE0(false);  // Reset E0 Currents.
-      //mmu_load_step();
-      mmu_idl_sens = true;
-    }
     if ((tData1 == 'P') && (tData2 == 'K'))
     {
       mmu_finda = tData3;
@@ -447,31 +444,15 @@ void mmu_loop(void)
         fsensor_stop_and_save_print();
         enquecommand_front_P(PSTR("PRUSA fsensor_recover")); //then recover
         ad_markDepleted(mmu_extruder);
-        if (lcd_autoDepleteEnabled() && !ad_allDepleted())
-        {
-          enquecommand_front_P(PSTR("M600 AUTO")); //save print and run M600 command
-        }
-        else
-        {
-          enquecommand_front_P(PSTR("M600")); //save print and run M600 command
-        }
+        if (lcd_autoDepleteEnabled() && !ad_allDepleted()) enquecommand_front_P(PSTR("M600 AUTO")); //save print and run M600 command
+        else enquecommand_front_P(PSTR("M600")); //save print and run M600 command
       }
       mmu_state = S::Idle;
-      if (mmu_cmd == MmuCmd::None)
-        mmu_ready = true;
-    }
-    else if (((mmu_last_request + MMU_P0_TIMEOUT) < _millis()))
-      mmu_state = S::Idle; // RMM was Wait
+      if (mmu_cmd == MmuCmd::None)mmu_ready = true;
+    } else if ((mmu_last_request + MMU_P0_TIMEOUT) < _millis())
+      mmu_state = S::Idle; // Was Wait in TZB Code
     return;                // Exit method.
   case S::Wait:
-    checkIR_SENSOR();
-    if ((tData1 == 'I') && (tData2 == 'R') && (tData3 == 'S') && (tData4 == 'E') && (tData5 == 'N'))
-    {
-      printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 IR Sensor'\n"));
-      // shutdownE0(false);  // Reset E0 Currents.
-      //mmu_load_step();
-      mmu_idl_sens = true;
-    }
     if (tData1 == 'U')
     {
       mmu_unload_synced((tData2 << 8) | (tData3));
@@ -486,16 +467,6 @@ void mmu_loop(void)
     return; // Exit method.
   }
 } // End of mmu_loop() method.
-
-void checkIR_SENSOR(void)
-{
-  if (PIN_GET(IR_SENSOR_PIN) == 0 && mmu_idl_sens) {
-      uart2_txPayload((unsigned char *)"IRSEN");
-      printf_P(PSTR("MK3 => MMU 'Filament seen at extruder'\n"));
-      // RMMTODO - May need to get MMU2S to stop until C0 is received.
-      mmu_idl_sens = false; }
-  if (mmu_idl_sens && can_extrude()) mmu_load_step();
-}
 
 void mmu_reset(void)
 {
@@ -546,19 +517,35 @@ bool mmu_get_response(void)
 
 {
 	KEEPALIVE_STATE(IN_PROCESS);
-	while (mmu_cmd != MmuCmd::None)
-	{
-    printf_P(PSTR("mmu_cmd != None\n"));
-		delay_keep_alive(100);
-	}
+	while (mmu_cmd != MmuCmd::None) { delay_keep_alive(100); }
 	while (!mmu_ready)
 	{
-    mmu_loop();
-    if ((mmu_state == S::Wait) && ((mmu_last_response + MMU_CMD_TIMEOUT) > millis())) {
+    cli();
+    // Copy volitale vars as local
+    unsigned char tData1 = rxData1;
+    unsigned char tData2 = rxData2;
+    unsigned char tData3 = rxData3;
+    unsigned char tData4 = rxData4;
+    unsigned char tData5 = rxData5;
+    bool confPayload = confirmedPayload;
+    sei();
+    if (txACKNext) uart2_txACK();
+    if (txNAKNext) uart2_txACK(false);
+    if (txRESEND) uart2_txPayload(lastTxPayload, true);
+    if (confPayload) mmu_last_response = _millis();
+    if (PIN_GET(IR_SENSOR_PIN) == 0 && mmu_idl_sens && MMU_IRSENS) {
+      uart2_txPayload((unsigned char *)"IRSEN");
+      printf_P(PSTR("MK3 => MMU 'Filament seen at extruder'\n"));
+      mmu_idl_sens = false;
+      MMU_IRSENS = false;
+    } else if (mmu_idl_sens && MMU_IRSENS) if (can_extrude()) mmu_load_step();
+    if ((mmu_state == S::Wait || mmu_state == S::Idle) && ((mmu_last_response + MMU_CMD_TIMEOUT) > millis()))
       delay_keep_alive(100);
-    } else break;
+    else break;
 	}
-	return mmu_ready;
+	bool ret = mmu_ready;
+	mmu_ready = false;
+	return ret;
 }
 
 //! @brief Wait for active extruder to reach temperature set
@@ -576,7 +563,6 @@ void mmu_wait_for_heater_blocking()
 
 void manage_response(bool move_axes, bool turn_off_nozzle)
 {
-	//bool response = false;
 	mmu_print_saved = false;
 	bool lcd_update_was_enabled = false;
 	float hotend_temp_bckp = degTargetHotend(active_extruder);

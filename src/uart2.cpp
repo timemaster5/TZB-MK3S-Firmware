@@ -13,7 +13,7 @@
 volatile unsigned char readRxBuffer, rxData1 = 0, rxData2 = 0, rxData3 = 0,
                                      rxData4 = 0, rxData5 = 0;
 volatile bool confirmedPayload = false, txNAKNext = false,
-              txACKNext = false, txRESEND = false, pendingACK = false;
+              txACKNext = false, txRESEND = false, pendingACK = false, MMU_IRSENS = false;
 enum class rx
 {
     Idle,
@@ -81,7 +81,8 @@ ISR(USART2_RX_vect)
         rxCount++;
         break;
     case rx::End:
-        if (readRxBuffer == 0xF7) { confirmedPayload = true; txACKNext = true;}
+        if (readRxBuffer == 0xF7) { confirmedPayload = true; txACKNext = true;
+        if (rxData1 == 'I' && rxData2 == 'R' && rxData3 == 'S' && rxData4 == 'E' && rxData5 == 'N') MMU_IRSENS = true; }
         else txNAKNext = true;
         rxCount = rx::Idle;
         break;

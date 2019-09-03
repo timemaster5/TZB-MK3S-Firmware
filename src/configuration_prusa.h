@@ -638,6 +638,7 @@ asm(".global _printf_float");
 
 #define MMU_REQUIRED_FW_BUILDNR 83
 #define MMU_HWRESET
+#define OCTO_NOTIFICATIONS_ON
 //#define MMU_DEBUG //print communication between MMU2 and printer on serial
 
 #define MMU_IDLER_SENSOR_ATTEMPTS_NR 21 //max. number of attempts to load filament if first load failed; value for max bowden length and case when loading fails right at the beginning

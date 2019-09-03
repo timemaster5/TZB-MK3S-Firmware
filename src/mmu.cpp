@@ -65,6 +65,7 @@ bool isMMUPrintPaused = false;
 int lastLoadedFilament = -10;
 uint16_t mmu_power_failures = 0;
 void shutdownE0(bool shutdown = true);
+void checkIR_SENSOR(void);
 
 uint16_t toolChanges = 0;
 uint8_t mmuE0BackupCurrents[2] = {0, 0};
@@ -79,10 +80,7 @@ bool ir_sensor_detected = false;
 
 //if IR_SENSOR defined, always returns true
 //otherwise check for ir sensor and returns true if idler IR sensor was detected, otherwise returns false
-bool check_for_ir_sensor()
-{
-  return true;
-}
+bool check_for_ir_sensor() { return true; }
 
 static S mmu_state = S::Disabled; //int8_t mmu_state = 0;
 MmuCmd mmu_cmd = MmuCmd::None;
@@ -427,6 +425,7 @@ void mmu_loop(void)
     }
     return; // Exit method.
   case S::GetFinda:
+    checkIR_SENSOR();
     if ((tData1 == 'I') && (tData2 == 'R') && (tData3 == 'S') && (tData4 == 'E') && (tData5 == 'N'))
     {
       printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 IR Sensor'\n"));
@@ -465,6 +464,7 @@ void mmu_loop(void)
       mmu_state = S::Idle; // RMM was Wait
     return;                // Exit method.
   case S::Wait:
+    checkIR_SENSOR();
     if ((tData1 == 'I') && (tData2 == 'R') && (tData3 == 'S') && (tData4 == 'E') && (tData5 == 'N'))
     {
       printf_P(PSTR("MMU => MK3 'waiting for filament @ MK3 IR Sensor'\n"));
@@ -486,6 +486,16 @@ void mmu_loop(void)
     return; // Exit method.
   }
 } // End of mmu_loop() method.
+
+void checkIR_SENSOR(void)
+{
+  if (PIN_GET(IR_SENSOR_PIN) == 0 && mmu_idl_sens) {
+      uart2_txPayload((unsigned char *)"IRSEN");
+      printf_P(PSTR("MK3 => MMU 'Filament seen at extruder'\n"));
+      // RMMTODO - May need to get MMU2S to stop until C0 is received.
+      mmu_idl_sens = false; }
+  if (mmu_idl_sens && can_extrude()) mmu_load_step();
+}
 
 void mmu_reset(void)
 {
@@ -535,7 +545,6 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
 bool mmu_get_response(void)
 
 {
-  //	printf_P(PSTR("mmu_get_response - begin\n"));
 	KEEPALIVE_STATE(IN_PROCESS);
 	while (mmu_cmd != MmuCmd::None)
 	{
@@ -544,47 +553,12 @@ bool mmu_get_response(void)
 	}
 	while (!mmu_ready)
 	{
-    cli();
-    // Copy volitale vars as local
-    unsigned char tData1 = rxData1;
-    unsigned char tData2 = rxData2;
-    unsigned char tData3 = rxData3;
-    unsigned char tData4 = rxData4;
-    unsigned char tData5 = rxData5;
-    bool confPayload = confirmedPayload;
-    sei();
-
-    if (txACKNext)
-      uart2_txACK();
-    if (txNAKNext)
-      uart2_txACK(false);
-    if (txRESEND)
-      uart2_txPayload(lastTxPayload, true);
-    if (confPayload)
-      mmu_last_response = _millis();
-    else
-    {
-      tData1 = ' ';
-      tData2 = ' ';
-      tData3 = ' ';
-      tData4 = ' ';
-      tData5 = ' ';
-    }
-
-    if (PIN_GET(IR_SENSOR_PIN) == 0 && mmu_idl_sens) {
-      uart2_txPayload((unsigned char *)"IRSEN");
-      printf_P(PSTR("MK3 => MMU 'Filament seen at extruder'\n"));
-      // RMMTODO - May need to get MMU2S to stop until C0 is received.
-      mmu_idl_sens = false; }
-    if (mmu_idl_sens && can_extrude()) mmu_load_step();
-    if (((mmu_state == S::Wait) || (mmu_state == S::Idle)) && ((mmu_last_response + MMU_CMD_TIMEOUT) > millis())) {
+    mmu_loop();
+    if ((mmu_state == S::Wait) && ((mmu_last_response + MMU_CMD_TIMEOUT) > millis())) {
       delay_keep_alive(100);
     } else break;
 	}
-	bool ret = mmu_ready;
-	mmu_ready = false;
-  //	printf_P(PSTR("mmu_get_response - end %d\n"), ret?1:0);
-	return ret;
+	return mmu_ready;
 }
 
 //! @brief Wait for active extruder to reach temperature set
@@ -602,7 +576,7 @@ void mmu_wait_for_heater_blocking()
 
 void manage_response(bool move_axes, bool turn_off_nozzle)
 {
-	bool response = false;
+	//bool response = false;
 	mmu_print_saved = false;
 	bool lcd_update_was_enabled = false;
 	float hotend_temp_bckp = degTargetHotend(active_extruder);
@@ -610,116 +584,114 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
 	float x_position_bckp = current_position[X_AXIS];
 	float y_position_bckp = current_position[Y_AXIS];
 	uint8_t screen = 0; //used for showing multiscreen messages
-	while(!response)
+	while(!mmu_get_response())
 	{
-		  response = mmu_get_response(); //wait for "ok" from mmu
-		  if (!response) { //no "ok" was received in reserved time frame, user will fix the issue on mmu unit
-        disable_e0(); //shutdownE0();  // Drop E0 Currents to 0.
-			  if (!mmu_print_saved) { //first occurence, we are saving current position, park print head in certain position and disable nozzle heater
-          uint8_t mmu_fail = eeprom_read_byte((uint8_t *)EEPROM_MMU_FAIL);
-          uint16_t mmu_fail_tot = eeprom_read_word((uint16_t *)EEPROM_MMU_FAIL_TOT);
-          if (mmu_fail < 255)
-            eeprom_update_byte((uint8_t *)EEPROM_MMU_FAIL, mmu_fail + 1);
-          if (mmu_fail_tot < 65535)
-            eeprom_update_word((uint16_t *)EEPROM_MMU_FAIL_TOT, mmu_fail_tot + 1);
-				  if (lcd_update_enabled) {
-					  lcd_update_was_enabled = true;
-					  lcd_update_enable(false);
-				  }
-				  st_synchronize();
-				  mmu_print_saved = true;
+    disable_e0(); //shutdownE0();  // Drop E0 Currents to 0.
+    if (!mmu_print_saved) { //first occurence, we are saving current position, park print head in certain position and disable nozzle heater
+      uint8_t mmu_fail = eeprom_read_byte((uint8_t *)EEPROM_MMU_FAIL);
+      uint16_t mmu_fail_tot = eeprom_read_word((uint16_t *)EEPROM_MMU_FAIL_TOT);
+      if (mmu_fail < 255)
+        eeprom_update_byte((uint8_t *)EEPROM_MMU_FAIL, mmu_fail + 1);
+      if (mmu_fail_tot < 65535)
+        eeprom_update_word((uint16_t *)EEPROM_MMU_FAIL_TOT, mmu_fail_tot + 1);
+      if (lcd_update_enabled) {
+        lcd_update_was_enabled = true;
+        lcd_update_enable(false);
+      }
+      st_synchronize();
+      mmu_print_saved = true;
 #ifdef OCTO_NOTIFICATIONS_ON
-          printf_P(PSTR("// action:mmuAttention\n"));
+      printf_P(PSTR("// action:mmuAttention\n"));
 #endif // OCTO_NOTIFICATIONS_ON
-				  printf_P(PSTR("MMU not responding\n"));
-          KEEPALIVE_STATE(PAUSED_FOR_USER);
-				  hotend_temp_bckp = degTargetHotend(active_extruder);
-				  if (move_axes) {
-					  z_position_bckp = current_position[Z_AXIS];
-					  x_position_bckp = current_position[X_AXIS];
-					  y_position_bckp = current_position[Y_AXIS];
+      printf_P(PSTR("MMU not responding\n"));
+      KEEPALIVE_STATE(PAUSED_FOR_USER);
+      hotend_temp_bckp = degTargetHotend(active_extruder);
+      if (move_axes) {
+        z_position_bckp = current_position[Z_AXIS];
+        x_position_bckp = current_position[X_AXIS];
+        y_position_bckp = current_position[Y_AXIS];
 
-					  //lift z
-					  current_position[Z_AXIS] += Z_PAUSE_LIFT;
-					  if (current_position[Z_AXIS] > Z_MAX_POS)
-              current_position[Z_AXIS] = Z_MAX_POS;
-            plan_buffer_line_curposXYZE(15, active_extruder);
-            st_synchronize();
-
-					  //Move XY to side
-					  current_position[X_AXIS] = X_PAUSE_POS;
-					  current_position[Y_AXIS] = Y_PAUSE_POS;
-            plan_buffer_line_curposXYZE(50, active_extruder);
-					  st_synchronize();
-				  }
-				  if (turn_off_nozzle) {
-					  //set nozzle target temperature to 0
-					  setAllTargetHotends(0);
-				  }
-			  }
-
-			  //first three lines are used for printing multiscreen message; last line contains measured and target nozzle temperature
-			  if (screen == 0) { //screen 0
-				  lcd_display_message_fullscreen_P(_i("MMU needs user attention."));
-				  screen++;
-			  }
-			  else {  //screen 1
-				  if((degTargetHotend(active_extruder) == 0) && turn_off_nozzle) lcd_display_message_fullscreen_P(_i("Press the knob to resume nozzle temperature."));
-				  else lcd_display_message_fullscreen_P(_i("Fix the issue and then press button on MMU unit."));
-				  screen=0;
-			  }
-
-			  lcd_set_degree();
-			  lcd_set_cursor(0, 4); //line 4
-			  //Print the hotend temperature (9 chars total) and fill rest of the line with space
-			  int chars = lcd_printf_P(_N("%c%3d/%d%c"), LCD_STR_THERMOMETER[0],(int)(degHotend(active_extruder) + 0.5), (int)(degTargetHotend(active_extruder) + 0.5), LCD_STR_DEGREE[0]);
-			  lcd_space(9 - chars);
-
-
-			  //5 seconds delay
-			  for (uint8_t i = 0; i < 50; i++) {
-				  if (lcd_clicked()) {
-					  setTargetHotend(hotend_temp_bckp, active_extruder);
-					  break;
-				  }
-				  delay_keep_alive(100);
-			  }
-		  }
-		  else if (mmu_print_saved) {
-			  printf_P(PSTR("MMU starts responding\n"));
-        KEEPALIVE_STATE(IN_HANDLER);
-			  if (turn_off_nozzle)
-			  {
-				lcd_clear();
-				setTargetHotend(hotend_temp_bckp, active_extruder);
-				if (((degTargetHotend(active_extruder) - degHotend(active_extruder)) > 5)) {
-					lcd_display_message_fullscreen_P(_i("MMU OK. Resuming temperature..."));
-					delay_keep_alive(3000);
-				}
-				while ((degTargetHotend(active_extruder) - degHotend(active_extruder)) > 5)
-				{
-					delay_keep_alive(1000);
-					lcd_wait_for_heater();
-				}
-			  }
-			  if (move_axes) {
-				  lcd_clear();
-				  lcd_display_message_fullscreen_P(_i("MMU OK. Resuming position..."));
-				  current_position[X_AXIS] = x_position_bckp;
-				  current_position[Y_AXIS] = y_position_bckp;
-        plan_buffer_line_curposXYZE(50, active_extruder);
-				  st_synchronize();
-				  current_position[Z_AXIS] = z_position_bckp;
+        //lift z
+        current_position[Z_AXIS] += Z_PAUSE_LIFT;
+        if (current_position[Z_AXIS] > Z_MAX_POS)
+          current_position[Z_AXIS] = Z_MAX_POS;
         plan_buffer_line_curposXYZE(15, active_extruder);
-				  st_synchronize();
-			  }
-			  else {
-				  lcd_clear();
-				  lcd_display_message_fullscreen_P(_i("MMU OK. Resuming..."));
-				  delay_keep_alive(1000); //delay just for showing MMU OK message for a while in case that there are no xyz movements
-			  }
-		  }
+        st_synchronize();
+
+        //Move XY to side
+        current_position[X_AXIS] = X_PAUSE_POS;
+        current_position[Y_AXIS] = Y_PAUSE_POS;
+        plan_buffer_line_curposXYZE(50, active_extruder);
+        st_synchronize();
+      }
+      if (turn_off_nozzle) {
+        //set nozzle target temperature to 0
+        setAllTargetHotends(0);
+      }
+    }
+
+    //first three lines are used for printing multiscreen message; last line contains measured and target nozzle temperature
+    if (screen == 0) { //screen 0
+      lcd_display_message_fullscreen_P(_i("MMU needs user attention."));
+      screen++;
+    }
+    else {  //screen 1
+      if((degTargetHotend(active_extruder) == 0) && turn_off_nozzle) lcd_display_message_fullscreen_P(_i("Press the knob to resume nozzle temperature."));
+      else lcd_display_message_fullscreen_P(_i("Fix the issue and then press button on MMU unit."));
+      screen=0;
+    }
+
+    lcd_set_degree();
+    lcd_set_cursor(0, 4); //line 4
+    //Print the hotend temperature (9 chars total) and fill rest of the line with space
+    int chars = lcd_printf_P(_N("%c%3d/%d%c"), LCD_STR_THERMOMETER[0],(int)(degHotend(active_extruder) + 0.5), (int)(degTargetHotend(active_extruder) + 0.5), LCD_STR_DEGREE[0]);
+    lcd_space(9 - chars);
+
+
+    //5 seconds delay
+    for (uint8_t i = 0; i < 50; i++) {
+      if (lcd_clicked()) {
+        setTargetHotend(hotend_temp_bckp, active_extruder);
+        break;
+      }
+      delay_keep_alive(100);
+    }
+		
 	}
+  if (mmu_print_saved) {
+    printf_P(PSTR("MMU starts responding\n"));
+    KEEPALIVE_STATE(IN_HANDLER);
+    if (turn_off_nozzle)
+    {
+    lcd_clear();
+    setTargetHotend(hotend_temp_bckp, active_extruder);
+    if (((degTargetHotend(active_extruder) - degHotend(active_extruder)) > 5)) {
+      lcd_display_message_fullscreen_P(_i("MMU OK. Resuming temperature..."));
+      delay_keep_alive(3000);
+    }
+    while ((degTargetHotend(active_extruder) - degHotend(active_extruder)) > 5)
+    {
+      delay_keep_alive(1000);
+      lcd_wait_for_heater();
+    }
+    }
+    if (move_axes) {
+      lcd_clear();
+      lcd_display_message_fullscreen_P(_i("MMU OK. Resuming position..."));
+      current_position[X_AXIS] = x_position_bckp;
+      current_position[Y_AXIS] = y_position_bckp;
+    plan_buffer_line_curposXYZE(50, active_extruder);
+      st_synchronize();
+      current_position[Z_AXIS] = z_position_bckp;
+    plan_buffer_line_curposXYZE(15, active_extruder);
+      st_synchronize();
+    }
+    else {
+      lcd_clear();
+      lcd_display_message_fullscreen_P(_i("MMU OK. Resuming..."));
+      delay_keep_alive(1000); //delay just for showing MMU OK message for a while in case that there are no xyz movements
+    }
+  }
 	if (lcd_update_was_enabled) lcd_update_enable(true);
   // shutdownE0(false);  // Reset E0 Currents.
 }

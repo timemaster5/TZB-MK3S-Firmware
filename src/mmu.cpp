@@ -682,7 +682,7 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
     }
   }
 	if (lcd_update_was_enabled) lcd_update_enable(true);
-  // shutdownE0(false);  // Reset E0 Currents.
+  shutdownE0(false);  // Reset E0 Currents.
 }
 
 void shutdownE0(bool shutdown)
@@ -1036,6 +1036,7 @@ static void mmu_continue_loading(void)
 {
   mmu_command(MmuCmd::C0);
   manage_response(false, false);
+  shutdownE0(false);
   current_position[E_AXIS] += 60;
   plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
   current_position[E_AXIS] -= 52;

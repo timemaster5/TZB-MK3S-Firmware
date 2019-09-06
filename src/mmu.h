@@ -92,9 +92,9 @@ extern void extr_unload_();
 
 extern void mmu_filament_ramming();
 extern void mmu_load_step(bool synchronize = true);
+extern void mmu_continue_loading(void);
 
 extern bool mmu_check_version();
 extern void mmu_show_warning();
 extern void lcd_mmu_load_to_nozzle(uint8_t filament_nr);
-//extern void mmu_continue_loading(bool blocking);
 extern void mmu_eject_filament(uint8_t filament, bool recover);

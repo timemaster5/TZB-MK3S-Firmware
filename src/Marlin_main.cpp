@@ -7756,7 +7756,7 @@ Sigma_Exit:
 	  	if (mmu_enabled) 
 		{
 			st_synchronize();
-			mmu_command(MmuCmd::C0);
+			mmu_continue_loading();
 			mmu_extruder = tmp_extruder; //filament change is finished
 			mmu_load_to_nozzle();
 		}
@@ -7800,7 +7800,7 @@ Sigma_Exit:
 #endif //defined(MMU_HAS_CUTTER) && defined(MMU_ALWAYS_CUT)
 				  mmu_command(MmuCmd::T0 + tmp_extruder);
 				  manage_response(true, true);
-		      mmu_command(MmuCmd::C0);
+		      mmu_continue_loading();
 
 				  mmu_extruder = tmp_extruder; //filament change is finished
 

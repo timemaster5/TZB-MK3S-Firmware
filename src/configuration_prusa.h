@@ -467,9 +467,9 @@ asm(".global _printf_float");
 #define  DEFAULT_bedKi 1.60
 #define  DEFAULT_bedKd 73.76
 #else
-#define  DEFAULT_bedKp 198.28
-#define  DEFAULT_bedKi 10.03
-#define  DEFAULT_bedKd 980.11
+#define  DEFAULT_bedKp 199.47
+#define  DEFAULT_bedKi 9.60
+#define  DEFAULT_bedKd 1036.12
 #endif
 
 //120v 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)

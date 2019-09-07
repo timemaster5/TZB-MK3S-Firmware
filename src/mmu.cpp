@@ -26,6 +26,8 @@
 #define MMU_TIMEOUT 10
 #define MMU_CMD_TIMEOUT 120000ul //2min timeout for mmu commands (except P0)
 #define MMU_P0_TIMEOUT 150ul    //timeout for P0 command: 30seconds
+#define MMU_MAX_RESEND_ATTEMPTS 2
+static uint8_t mmu_attempt_nr = 0;
 
 #ifdef MMU_HWRESET
 #define MMU_RST_PIN 76
@@ -477,9 +479,28 @@ void mmu_loop(void)
     else if ((tData1 == 'O') && (tData2 == 'K'))
     {
       printf_P(PSTR("MMU => MK3 'ok'\n"));
+      mmu_attempt_nr = 0;
       mmu_ready = true;
       mmu_state = S::Idle;
     }
+    else if ((mmu_last_request + (MMU_CMD_TIMEOUT/2)) < _millis())
+		{ //resend request after timeout (1 min)
+			if (mmu_last_cmd != MmuCmd::None)
+			{
+				if (mmu_attempt_nr++ < MMU_MAX_RESEND_ATTEMPTS &&
+				    mmu_last_cmd >= MmuCmd::T0 && mmu_last_cmd <= MmuCmd::T4)
+				{
+				    DEBUG_PRINTF_P(PSTR("MMU retry attempt nr. %d\n"), mmu_attempt_nr - 1);
+					mmu_cmd = mmu_last_cmd;
+				}
+				else {
+					mmu_cmd = MmuCmd::None;
+					mmu_last_cmd = MmuCmd::None; //check
+					mmu_attempt_nr = 0;
+				}
+			}
+			mmu_state = S::Idle;
+		}
     return; // Exit method.
   }
 } // End of mmu_loop() method.

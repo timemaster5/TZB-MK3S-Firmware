@@ -31,7 +31,7 @@ rx rxCount = rx::Idle;
 inline rx& operator++(rx& byte, int)
 {
     const int i = static_cast<int>(byte) + 1;
-    byte = static_cast<rx>((i) % 7);
+    byte = static_cast<rx>((i) % 9);
     return byte;
 }
 
@@ -50,7 +50,6 @@ void uart2_init(void)
 
 ISR(USART2_RX_vect)
 {
-    cli();
     readRxBuffer = UDR2;
     if (rxTimeout + 1855 < _micros()) rxCount = rx::Idle;
     switch (rxCount) {
@@ -94,7 +93,6 @@ ISR(USART2_RX_vect)
         rxCount = rx::Idle;
         break;
     }
-  sei();
 }
 
 void uart2_txPayload(unsigned char payload[])

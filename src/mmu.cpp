@@ -148,7 +148,7 @@ uint8_t mmu_extruder = 0;
 
 //! This variable probably has no meaning and is planed to be removed
 uint8_t tmp_extruder = 0;
-int8_t mmu_finda = 1;
+int8_t mmu_finda = -1;
 int16_t mmu_version = -1;
 int16_t mmu_buildnr = -1;
 uint32_t mmu_last_request = 0;
@@ -199,6 +199,7 @@ void mmu_loop(void)
   printf_P(PSTR("MMU loop, state=%d\n"), (int)mmu_state);
 #endif //MMU_DEBUG
 
+  cli();
   // Copy volitale vars as local
   unsigned char tData1 = rxData1;
   unsigned char tData2 = rxData2;
@@ -211,6 +212,7 @@ void mmu_loop(void)
   if (confPayload) { mmu_last_response = _millis(); confirmedPayload = false; }
   else { tData1 = ' '; tData2 = ' '; tData3 = ' '; tData4 = ' '; tData5 = ' '; }
   if (confFINDA) { mmu_finda = tFINDA; confirmedFINDA = false; }
+  sei();
 
   // All Notification & Status Updates between MK3S/MMU2S
   if (mmu_state > S::Disabled)

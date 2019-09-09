@@ -14,15 +14,10 @@
 #include "mmu.h"
 #include "Arduino.h"
 
-extern volatile unsigned char rxData1, rxData2, rxData3, rxData4, rxData5;
-extern volatile bool confirmedPayload, txNAKNext, txACKNext,
-       txRESEND, pendingACK, MMU_IRSENS;
-extern unsigned long startTXTimeout;
+extern volatile unsigned char rxData1, rxData2, rxData3, rxData4, rxData5, rxFINDA;
+extern volatile bool confirmedPayload, confirmedFINDA, MMU_IRSENS;
 
-extern unsigned char lastTxPayload[5];
-
-extern void uart2_txPayload(unsigned char*, bool retry = false);
-extern void uart2_txACK(bool ACK = true);
+extern void uart2_txPayload(unsigned char*);
 
 extern void uart2_init(void);
 

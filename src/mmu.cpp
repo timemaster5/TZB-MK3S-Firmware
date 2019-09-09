@@ -25,7 +25,6 @@
 #define MMU_TODELAY 100
 #define MMU_TIMEOUT 10
 #define MMU_CMD_TIMEOUT 120000ul //2min timeout for mmu commands (except P0)
-#define MMU_P0_TIMEOUT 150ul    //timeout for P0 command: 30seconds
 #define MMU_MAX_RESEND_ATTEMPTS 2
 static uint8_t mmu_attempt_nr = 0;
 
@@ -47,7 +46,6 @@ namespace
 { // MMU2S States
   enum class S : uint_least8_t
   {
-    FindaInit,
     GetActExt,
     GetBN,
     GetVer,
@@ -56,7 +54,6 @@ namespace
     Init,
     Disabled,
     Idle,
-    GetFinda,
     Wait,
     Setup
   };
@@ -151,11 +148,12 @@ uint8_t mmu_extruder = 0;
 
 //! This variable probably has no meaning and is planed to be removed
 uint8_t tmp_extruder = 0;
-int8_t mmu_finda = -1;
+int8_t mmu_finda = 1;
 int16_t mmu_version = -1;
 int16_t mmu_buildnr = -1;
 uint32_t mmu_last_request = 0;
 uint32_t mmu_last_response = 0;
+uint32_t mmu_last_finda_update = 0;
 
 //initialize mmu2 unit - first part - should be done at begining of startup process
 void mmu_init(void)
@@ -207,12 +205,12 @@ void mmu_loop(void)
   unsigned char tData3 = rxData3;
   unsigned char tData4 = rxData4;
   unsigned char tData5 = rxData5;
+  unsigned char tFINDA = rxFINDA;
   bool confPayload = confirmedPayload;
-  if (txACKNext) uart2_txACK();
-  if (txNAKNext) uart2_txACK(false);
-  if (txRESEND)  uart2_txPayload(lastTxPayload, true);
-  if (confPayload) mmu_last_response = _millis();
+  bool confFINDA = confirmedFINDA;
+  if (confPayload) { mmu_last_response = _millis(); confirmedPayload = false; }
   else { tData1 = ' '; tData2 = ' '; tData3 = ' '; tData4 = ' '; tData5 = ' '; }
+  if (confFINDA) { mmu_finda = tFINDA; confirmedFINDA = false; }
 
   // All Notification & Status Updates between MK3S/MMU2S
   if (mmu_state > S::Disabled)
@@ -328,11 +326,21 @@ void mmu_loop(void)
       printf_P(PSTR("MMU2S => MK32S '@toolChange:%d'\n"), toolChanges); }
   } // End of mmu_state > S::Disabled
 
+  if (!mmu_finda && CHECK_FSENSOR && fsensor_enabled)
+  {
+    #ifdef OCTO_NOTIFICATIONS_ON
+    printf_P(PSTR("// action:m600\n"));
+    #endif // OCTO_NOTIFICATIONS_ON
+    fsensor_stop_and_save_print();
+    enquecommand_front_P(PSTR("PRUSA fsensor_recover")); //then recover
+    ad_markDepleted(mmu_extruder);
+    if (lcd_autoDepleteEnabled() && !ad_allDepleted()) enquecommand_front_P(PSTR("M600 AUTO")); //save print and run M600 command
+    else enquecommand_front_P(PSTR("M600")); //save print and run M600 command
+  }
+
   switch (mmu_state)
   {
   case S::Disabled:
-    if ((tData1 == 'S') && (tData2 == 'T') && (tData3 == 'R'))
-      mmu_state = S::Init;
     return;
   case S::Init:
     if ((tData1 == 'S') && (tData2 == 'T') && (tData3 == 'R'))
@@ -375,15 +383,6 @@ void mmu_loop(void)
       tmp_extruder = tData3;
       mmu_extruder = tmp_extruder;
       printf_P(PSTR("MMU2S => MK32S 'Active Extruder:%d'\n"), tmp_extruder + 1);
-      uart2_txPayload((unsigned char *)"P0---");
-      mmu_state = S::FindaInit;
-    }
-    return; // Exit method.
-  case S::FindaInit:
-    if ((tData1 == 'P') && (tData2 == 'K'))
-    {
-      mmu_finda = tData3;
-      printf_P(PSTR("MMU2S => MK32S 'FINDA Initialised'\n"));
       unsigned char tempSetMode[5] = {'M', SilentModeMenu_MMU, BLK, BLK, BLK};
       uart2_txPayload(tempSetMode);
       mmu_state = S::SetModeInit;
@@ -468,44 +467,19 @@ void mmu_loop(void)
       }
       mmu_cmd = MmuCmd::None;
     }
-    else if ((eeprom_read_byte((uint8_t*)EEPROM_MMU_STEALTH) != SilentModeMenu_MMU) && mmu_ready) {
+    else if ((eeprom_read_byte((uint8_t*)EEPROM_MMU_STEALTH) != SilentModeMenu_MMU) && mmu_ready)
+    {
       printf_P(PSTR("MK32S => MMU2S 'M%d'\n"), SilentModeMenu_MMU);
       unsigned char tempSetMode[5] = {'M', SilentModeMenu_MMU, BLK, BLK, BLK};
       uart2_txPayload(tempSetMode);
       mmu_state = S::SetMode;
 		}
-    else if (((mmu_last_response + 300) < _millis()) && !mmu_idl_sens)
+    else if (((mmu_last_finda_update + 300) < _millis()) && !mmu_idl_sens)
     {
-      #ifndef IR_SENSOR
-			if(check_for_ir_sensor()) ir_sensor_detected = true;
-      #endif //IR_SENSOR not defined
+      mmu_last_finda_update = _millis();
       uart2_txPayload((unsigned char *)"P0---");
-      mmu_state = S::GetFinda;
     }
     return; // Exit method.
-  case S::GetFinda:
-    if ((tData1 == 'P') && (tData2 == 'K'))
-    {
-      mmu_finda = tData3;
-      #ifdef MMU_DEBUG
-      printf_P(PSTR("MMU2S => MK32S 'PK%d'\n"), mmu_finda);
-      #endif //MMU_DEBUG
-      if (!mmu_finda && CHECK_FSENSOR && fsensor_enabled)
-      {
-        #ifdef OCTO_NOTIFICATIONS_ON
-        printf_P(PSTR("// action:m600\n"));
-        #endif // OCTO_NOTIFICATIONS_ON
-        fsensor_stop_and_save_print();
-        enquecommand_front_P(PSTR("PRUSA fsensor_recover")); //then recover
-        ad_markDepleted(mmu_extruder);
-        if (lcd_autoDepleteEnabled() && !ad_allDepleted()) enquecommand_front_P(PSTR("M600 AUTO")); //save print and run M600 command
-        else enquecommand_front_P(PSTR("M600")); //save print and run M600 command
-      }
-      mmu_state = S::Idle;
-      if (mmu_cmd == MmuCmd::None)mmu_ready = true;
-    } else if ((mmu_last_request + MMU_P0_TIMEOUT) < _millis())
-      mmu_state = S::Idle;
-    return;                // Exit method.
   case S::Wait:
     if (tData1 == 'U')
     {
@@ -516,6 +490,7 @@ void mmu_loop(void)
     {
       printf_P(PSTR("MMU2S => MK32S 'ok'\n"));
       mmu_attempt_nr = 0;
+      mmu_last_cmd = MmuCmd::None;
       mmu_ready = true;
       mmu_state = S::Idle;
     }
@@ -525,7 +500,7 @@ void mmu_loop(void)
 			{
 				if (mmu_attempt_nr++ < MMU_MAX_RESEND_ATTEMPTS)
 				{
-          printf_P(PSTR("MMU Retry Attempt Nr:%d\n"), mmu_attempt_nr -1);
+          printf_P(PSTR("MMU Retry Attempt Number:%d\n"), mmu_attempt_nr -1);
 					mmu_cmd = mmu_last_cmd;
 				} else {
 					mmu_cmd = MmuCmd::None;
@@ -583,7 +558,6 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
 }
 
 bool mmu_get_response(void)
-
 {
 	KEEPALIVE_STATE(IN_PROCESS);
 	while (mmu_cmd != MmuCmd::None) { delay_keep_alive(100); }
@@ -871,7 +845,7 @@ void mmu_M600_load_filament(bool automatic, float nozzle_temp)
 
   mmu_command(MmuCmd::T0 + tmp_extruder);
   manage_response(false, true);
-  mmu_continue_loading();
+  if (!mmu_continue_loading()) manage_response(true, true);
   mmu_extruder = tmp_extruder; //filament change is finished
   mmu_load_to_nozzle();
   load_filament_final_feed();
@@ -1062,7 +1036,7 @@ void lcd_mmu_load_to_nozzle(uint8_t filament_nr)
     if (PIN_GET(IR_SENSOR_PIN) == 0) mmu_filament_ramming();
     mmu_command(MmuCmd::T0 + tmp_extruder);
     manage_response(true, true);
-    mmu_continue_loading();
+    if (!mmu_continue_loading()) manage_response(true, true);
     mmu_extruder = tmp_extruder; //filament change is finished
     mmu_load_to_nozzle();
     load_filament_final_feed();
@@ -1087,44 +1061,25 @@ void lcd_mmu_load_to_nozzle(uint8_t filament_nr)
 //! being detected by the pulley IR sensor.
 //! @retval true Fits
 //! @retval false Doesn't fit
-static void mmu_continue_loading(void)
+static bool mmu_continue_loading(void)
 {
   mmu_command(MmuCmd::C0);
-  manage_response(false, false);
   shutdownE0(false);
+  st_synchronize();
   current_position[E_AXIS] += 60;
   plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
   current_position[E_AXIS] -= 52;
   plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
   st_synchronize();
-
-  uint_least8_t filament_detected_count = 0;
-  const float e_increment = 0.2;
-  const uint_least8_t steps = 6.0 / e_increment;
-  DEBUG_PUTS_P(PSTR("MMU can_load:"));
-  for (uint_least8_t i = 0; i < steps; ++i)
-  {
-    current_position[E_AXIS] -= e_increment;
+  
+  if (PIN_GET(IR_SENSOR_PIN) == 0){ // No Jam so load back into heatbreak a touch.
+    current_position[E_AXIS] += 4;
     plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
     st_synchronize();
-    if (0 == PIN_GET(IR_SENSOR_PIN))
-    {
-      ++filament_detected_count;
-      DEBUG_PUTCHAR('O');
-    }
-    else
-    {
-      DEBUG_PUTCHAR('o');
-    }
-  }
-  if (filament_detected_count > steps - 4)
-  {
-    DEBUG_PUTS_P(PSTR(" succeeded."));
-  }
-  else
-  {
-    DEBUG_PUTS_P(PSTR(" failed."));
-    // RMMTODO - Setup Failure message on display, handle and Telegram message user.
+  } else {
+    printf_P(PSTR("Jam in Heatbreak.\n")); // RMMTODO do some handling here
+    mmu_state = S::Wait;
+    mmu_ready = false;
   }
 }
 
@@ -1136,7 +1091,6 @@ void mmu_eject_filament(uint8_t filament, bool recover)
     if (degHotend0() > EXTRUDE_MINTEMP)
     {
       st_synchronize();
-
       {
         LcdUpdateDisabler disableLcdUpdate;
         lcd_clear();

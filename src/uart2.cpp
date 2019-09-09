@@ -11,9 +11,9 @@
 #include "system_timer.h"
 
 volatile unsigned char readRxBuffer, rxData1 = 0, rxData2 = 0, rxData3 = 0,
-                                     rxData4 = 0, rxData5 = 0;
-volatile bool confirmedPayload = false, txNAKNext = false,
-              txACKNext = false, txRESEND = false, pendingACK = false, MMU_IRSENS = false;
+                                     rxData4 = 0, rxData5 = 0, rxFINDA = 0;
+volatile bool confirmedPayload = false, confirmedFINDA = false, MMU_IRSENS = false;
+volatile long rxTimeout = _micros();
 enum class rx
 {
     Idle,
@@ -22,8 +22,11 @@ enum class rx
     Data3,
     Data4,
     Data5,
-    End
+    End,
+    FINDA,
+    EndFINDA
 };
+rx rxCount = rx::Idle;
 
 inline rx& operator++(rx& byte, int)
 {
@@ -31,9 +34,6 @@ inline rx& operator++(rx& byte, int)
     byte = static_cast<rx>((i) % 7);
     return byte;
 }
-
-rx rxCount = rx::Idle;
-unsigned char lastTxPayload[] = {0, 0, 0, 0, 0}; // used to try resend once
 
 void uart2_init(void)
 {
@@ -52,13 +52,12 @@ void uart2_init(void)
 
 ISR(USART2_RX_vect)
 {
-    cli();
     readRxBuffer = UDR2;
+    if (rxTimeout + 1855 < _micros()) rxCount = rx::Idle;
     switch (rxCount) {
     case rx::Idle:
-        if (readRxBuffer == 0x7F) rxCount++;
-        if (readRxBuffer == 0x06) pendingACK = false;
-        if (readRxBuffer == 0x15) txRESEND = true;
+        if (readRxBuffer == 0x7F) { rxCount++; rxTimeout = _micros(); }
+        if (readRxBuffer == 0x06) { rxCount = rx::FINDA; rxTimeout = _micros(); }
         break;
     case rx::Data1:
         rxData1 = readRxBuffer;
@@ -81,52 +80,35 @@ ISR(USART2_RX_vect)
         rxCount++;
         break;
     case rx::End:
-        if (readRxBuffer == 0xF7) { confirmedPayload = true; txACKNext = true;
-        if (rxData1 == 'I' && rxData2 == 'R' && rxData3 == 'S' && rxData4 == 'E' && rxData5 == 'N') MMU_IRSENS = true; }
-        else txNAKNext = true;
+        if (readRxBuffer == 0xF7) {
+            if (rxData1 == 'I' && rxData2 == 'R' && rxData3 == 'S' && rxData4 == 'E' && rxData5 == 'N') MMU_IRSENS = true;
+            else confirmedPayload = true;
+        }
+        rxCount = rx::Idle;
+        break;
+    case rx::FINDA:
+        rxFINDA = readRxBuffer;
+        rxCount++;
+        break;
+    case rx::EndFINDA:
+        if (readRxBuffer == 0xF7) confirmedFINDA = true;
         rxCount = rx::Idle;
         break;
     }
-    sei();
 }
 
-void uart2_txPayload(unsigned char payload[], bool retry)
+void uart2_txPayload(unsigned char payload[])
 {
 #ifdef MMU_DEBUG
     printf_P(PSTR("\nUART2 TX 0x%2X %2X %2X\n"), payload[0], payload[1], payload[2]);
 #endif //MMU_DEBUG
-    if (retry) { // Allow only one retry then give up
-        confirmedPayload = false;
-        txRESEND         = false;
-        if (lastTxPayload == payload || (payload[0] == 'P' && payload[1] == '0')) {
-            pendingACK = false;
-            return;
-        }
-    }
     mmu_last_request = _millis();
-    for (uint8_t i = 0; i < 5; i++) lastTxPayload[i] = payload[i];
     loop_until_bit_is_set(UCSR2A, UDRE2);     // Do nothing until UDR is ready for more data to be written to it
     UDR2 = 0x7F;
     for (uint8_t i = 0; i < 5; i++) {
         loop_until_bit_is_set(UCSR2A, UDRE2); // Do nothing until UDR is ready for more data to be written to it
-        if (!txRESEND) UDR2 = (0xFF & (int)payload[i]);
+        UDR2 = (0xFF & (int)payload[i]);
     }
     loop_until_bit_is_set(UCSR2A, UDRE2);     // Do nothing until UDR is ready for more data to be written to it
     UDR2 = 0xF7;
-    pendingACK = true;
-}
-
-void uart2_txACK(bool ACK)
-{
-    confirmedPayload = false;
-    if (ACK) {
-        loop_until_bit_is_set(UCSR2A, UDRE2); // Do nothing until UDR is ready for more data to be written to it
-        UDR2 = 0x06; // ACK HEX
-        confirmedPayload = false;
-        txACKNext = false;
-    } else {
-        loop_until_bit_is_set(UCSR2A, UDRE2); // Do nothing until UDR is ready for more data to be written to it
-        UDR2 = 0x15; // NACK HEX
-        txNAKNext = false;
-    }
 }

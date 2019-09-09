@@ -7755,8 +7755,6 @@ Sigma_Exit:
 	  else if (*(strchr_pointer + index) == 'c') { //load to from bondtech gears to nozzle (nozzle should be preheated)
 	  	if (mmu_enabled) 
 		{
-			st_synchronize();
-			mmu_continue_loading();
 			mmu_extruder = tmp_extruder; //filament change is finished
 			mmu_load_to_nozzle();
 		}
@@ -7800,8 +7798,7 @@ Sigma_Exit:
 #endif //defined(MMU_HAS_CUTTER) && defined(MMU_ALWAYS_CUT)
 				  mmu_command(MmuCmd::T0 + tmp_extruder);
 				  manage_response(true, true);
-          st_synchronize();
-		      mmu_continue_loading();
+		      if (!mmu_continue_loading()) manage_response(true, true);
 				  mmu_extruder = tmp_extruder; //filament change is finished
 
 				  if (load_to_nozzle)// for single material usage with mmu

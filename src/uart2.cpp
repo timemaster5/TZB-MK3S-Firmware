@@ -37,7 +37,6 @@ inline rx& operator++(rx& byte, int)
 
 void uart2_init(void)
 {
-    cli();
     UCSR2A = (0 << U2X2); // baudrate multiplier
     UCSR2B = (1 << RXEN2) | (1 << TXEN2) | (0 << UCSZ22); // enable receiver and transmitter
     UCSR2C = (0 << UMSEL21) | (0 << UMSEL20) | (0 << UPM21) |
@@ -47,11 +46,11 @@ void uart2_init(void)
     UBRR2L = BAUD_PRESCALE; // Load lower 8-bits of the baud rate value into the low byte of the UBRR register
 
     UCSR2B |= (1 << RXCIE2); // enable rx interrupt
-    sei();
 }
 
 ISR(USART2_RX_vect)
 {
+    cli();
     readRxBuffer = UDR2;
     if (rxTimeout + 1855 < _micros()) rxCount = rx::Idle;
     switch (rxCount) {
@@ -95,6 +94,7 @@ ISR(USART2_RX_vect)
         rxCount = rx::Idle;
         break;
     }
+  sei();
 }
 
 void uart2_txPayload(unsigned char payload[])

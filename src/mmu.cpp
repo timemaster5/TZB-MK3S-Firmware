@@ -243,14 +243,14 @@ void mmu_loop(void)
                                              //********************
       lcd_setstatus("MMU Load Failed @MMU"); // 20 Chars
       #ifdef OCTO_NOTIFICATIONS_ON
-      printf_P(PSTR("// action:mmuFailedLoad1\n"));
+      printf_P(PSTR("// action:mmuFailedLoadFINDA\n"));
       #endif // OCTO_NOTIFICATIONS_ON
     } 
     else if ((tData1 == 'Z') && (tData2 == 'L') && (tData3 == '2')) { // MMU Loading Failed
-                                             //********************
+                  //********************
       lcd_setstatus("MMU Load Failed @MK3"); // 20 Chars
       #ifdef OCTO_NOTIFICATIONS_ON
-      printf_P(PSTR("// action:mmuFailedLoad2\n"));
+      printf_P(PSTR("// action:mmuFailedLoadIR_SENSOR\n"));
       #endif // OCTO_NOTIFICATIONS_ON
       MMU_IRSENS = false;
       mmu_state = S::Wait; }
@@ -260,6 +260,8 @@ void mmu_loop(void)
       #ifdef OCTO_NOTIFICATIONS_ON
       printf_P(PSTR("// action:mmuFailedUnload\n"));
       #endif // OCTO_NOTIFICATIONS_ON
+      mmu_idl_sens = true;
+      MMU_IRSENS = false;
     }
     else if ((tData1 == 'Z') && (tData2 == '1')) { // MMU Filament Loaded
                                              //********************
@@ -1075,11 +1077,14 @@ static bool mmu_continue_loading(void)
   st_synchronize();
   
   if (PIN_GET(IR_SENSOR_PIN) == 0){ // No Jam so load back into heatbreak a touch.
-    current_position[E_AXIS] += 4;
+    current_position[E_AXIS] += 5;
     plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
     st_synchronize();
   } else {
     printf_P(PSTR("Jam in Heatbreak.\n")); // RMMTODO do some handling here
+    #ifdef OCTO_NOTIFICATIONS_ON
+    printf_P(PSTR("// action:jamDetected\n"));
+    #endif // OCTO_NOTIFICATIONS_ON
     mmu_state = S::Wait;
     mmu_ready = false;
   }

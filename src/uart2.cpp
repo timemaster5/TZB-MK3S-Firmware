@@ -41,10 +41,8 @@ void uart2_init(void)
     UCSR2B = (1 << RXEN2) | (1 << TXEN2) | (0 << UCSZ22); // enable receiver and transmitter
     UCSR2C = (0 << UMSEL21) | (0 << UMSEL20) | (0 << UPM21) |
              (0 << UPM20) | (1 << USBS2) |(1 << UCSZ21) | (1 << UCSZ20); // Use 8-bit character sizes
-
     UBRR2H = (BAUD_PRESCALE >> 8); // Load upper 8-bits of the baud rate value into the high byte of the UBRR register
     UBRR2L = BAUD_PRESCALE; // Load lower 8-bits of the baud rate value into the low byte of the UBRR register
-
     UCSR2B |= (1 << RXCIE2); // enable rx interrupt
 }
 

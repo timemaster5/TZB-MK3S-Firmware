@@ -488,8 +488,8 @@ void mmu_loop(void)
   case S::Wait:
     if (tData1 == 'U')
     {
-      mmu_unload_synced((tData2 << 8) | (tData3));
       printf_P(PSTR("MMU2S => MK32S 'Unload Feedrate: %d%d'\n"), tData2, tData3);
+      mmu_unload_synced((tData2 << 8) | (tData3));
     }
     else if ((tData1 == 'O') && (tData2 == 'K'))
     {
@@ -500,13 +500,14 @@ void mmu_loop(void)
       mmu_state = S::Idle;
     }
     else if ((mmu_last_request + (MMU_CMD_TIMEOUT/2)) < _millis())
-		{ //resend request after timeout (1 min)
+		{ //resend request after timeout (2.5mins)
 			if (mmu_last_cmd != MmuCmd::None)
 			{
 				if (mmu_attempt_nr++ < MMU_MAX_RESEND_ATTEMPTS)
 				{
           printf_P(PSTR("MMU Retry Attempt Number:%d\n"), mmu_attempt_nr -1);
 					mmu_cmd = mmu_last_cmd;
+          mmu_state = S::Idle;
 				} else {
 					mmu_cmd = MmuCmd::None;
 					mmu_last_cmd = MmuCmd::None; //check
@@ -569,7 +570,6 @@ bool mmu_get_response(void)
 	while (!mmu_ready) {
     mmu_loop();
     if (mmu_idl_sens && MMU_IRSENS) {
-      //delay_keep_alive(MMU_IRSENS_TIMEOUT);
       for (uint8_t i = 0; i < 600; i++) {
         if (can_extrude() && PIN_GET(IR_SENSOR_PIN)) mmu_load_step();
         else break;
@@ -578,8 +578,8 @@ bool mmu_get_response(void)
         uart2_txPayload((unsigned char *)"IRSEN");
         printf_P(PSTR("MK32S => MMU2S 'Filament seen at extruder'\n"));
         mmu_idl_sens = false;
-        MMU_IRSENS = false;
       }
+      MMU_IRSENS = false;
     }
     if (mmu_state == S::Wait && ((mmu_last_response + MMU_CMD_TIMEOUT) > millis())) delay_keep_alive(100);
     else break;
@@ -720,8 +720,6 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
     }
   }
 	if (lcd_update_was_enabled) lcd_update_enable(true);
-  mmu_idl_sens = false;
-  MMU_IRSENS = false;
   shutdownE0(false);  // Reset E0 Currents.
 }
 
@@ -1116,8 +1114,7 @@ static void increment_load_fail()
 //! @retval false Doesn't fit
 static void mmu_continue_loading(void)
 {
-  if (!ir_sensor_detected)
-  {
+  if (!ir_sensor_detected) {
     mmu_command(MmuCmd::C0);
     return;
   }

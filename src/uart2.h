@@ -15,7 +15,7 @@
 #include "Arduino.h"
 
 extern volatile unsigned char rxData1, rxData2, rxData3, rxData4, rxData5, rxFINDA;
-extern volatile bool confirmedPayload, confirmedFINDA, MMU_IRSENS;
+extern volatile bool confirmedPayload, confirmedFINDA, atomic_MMU_IRSENS;
 
 extern void uart2_txPayload(unsigned char*);
 

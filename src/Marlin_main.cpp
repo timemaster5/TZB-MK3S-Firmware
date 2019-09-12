@@ -992,15 +992,17 @@ void setup()
 	mmu_init();
 
 	ultralcd_init();
-
+  //lcd_setstatus("1"); // 20 Chars
 #if (LCD_BL_PIN != -1) && defined (LCD_BL_PIN)
 	analogWrite(LCD_BL_PIN, 255); //set full brightnes
 #endif //(LCD_BL_PIN != -1) && defined (LCD_BL_PIN)
 
 	spi_init();
+  //lcd_setstatus("2"); // 20 Chars
 
 	lcd_splash();
-    Sound_Init();                                // also guarantee "SET_OUTPUT(BEEPER)"
+  Sound_Init();                                // also guarantee "SET_OUTPUT(BEEPER)"
+  //lcd_setstatus("3"); // 20 Chars
 
 #ifdef W25X20CL
     bool w25x20cl_success = w25x20cl_init();
@@ -1018,10 +1020,12 @@ void setup()
 #else
 	const bool w25x20cl_success = true;
 #endif //W25X20CL
-
+  //lcd_setstatus("4"); // 20 Chars
 
 	setup_killpin();
+  //lcd_setstatus("5"); // 20 Chars
 	setup_powerhold();
+//  lcd_setstatus("6"); // 20 Chars
 
 	farm_mode = eeprom_read_byte((uint8_t*)EEPROM_FARM_MODE); 
 	EEPROM_read_B(EEPROM_FARM_NUMBER, &farm_no);
@@ -1051,13 +1055,16 @@ void setup()
                eeprom_update_byte((unsigned char *)EEPROM_FAN_CHECK_ENABLED,true);
 	}
 	MYSERIAL.begin(BAUDRATE);
+//  lcd_setstatus("7"); // 20 Chars
 	fdev_setup_stream(uartout, uart_putchar, NULL, _FDEV_SETUP_WRITE); //setup uart out stream
+//  lcd_setstatus("8"); // 20 Chars
 #ifndef W25X20CL
 	SERIAL_PROTOCOLLNPGM("start");
 #endif //W25X20CL
 	stdout = uartout;
 	SERIAL_ECHO_START;
 	printf_P(PSTR(" " FW_VERSION_FULL "\n"));
+//  lcd_setstatus("9"); // 20 Chars
 
 	//SERIAL_ECHOPAIR("Active sheet before:", static_cast<unsigned long int>(eeprom_read_byte(&(EEPROM_Sheets_base->active_sheet))));
 
@@ -1192,6 +1199,7 @@ void setup()
 	if (mcu & 8) puts_P(MSG_WATCHDOG_RESET);
 	if (mcu & 32) puts_P(MSG_SOFTWARE_RESET);
 	MCUSR = 0;
+//  lcd_setstatus("10"); // 20 Chars
 
 	//SERIAL_ECHORPGM(MSG_MARLIN);
 	//SERIAL_ECHOLNRPGM(VERSION_STRING);
@@ -1218,6 +1226,7 @@ void setup()
 	
 	bool previous_settings_retrieved = false; 
 	uint8_t hw_changed = check_printer_version();
+//  lcd_setstatus("11"); // 20 Chars
 	if (!(hw_changed & 0b10)) { //if printer version wasn't changed, check for eeprom version and retrieve settings from eeprom in case that version wasn't changed
 		previous_settings_retrieved = Config_RetrieveSettings();
 	} 
@@ -1225,19 +1234,21 @@ void setup()
 		Config_ResetDefault();
 	}
 	SdFatUtil::set_stack_guard(); //writes magic number at the end of static variables to protect against overwriting static memory by stack
+//  lcd_setstatus("12"); // 20 Chars
 
 	tp_init();    // Initialize temperature loop
-
+//  lcd_setstatus("13"); // 20 Chars
 	if (w25x20cl_success) lcd_splash(); // we need to do this again, because tp_init() kills lcd
 	else
 	{
 	    w25x20cl_err_msg();
 	    printf_P(_n("W25X20CL not responding.\n"));
 	}
-
+//  lcd_setstatus("14"); // 20 Chars
 	plan_init();  // Initialize planner;
-
+//  lcd_setstatus("15"); // 20 Chars
 	factory_reset();
+//  lcd_setstatus("16"); // 20 Chars
     lcd_encoder_diff=0;
 
 #ifdef TMC2130
@@ -1282,8 +1293,9 @@ void setup()
 #endif //TMC2130_VARIABLE_RESOLUTION
 
 #endif //TMC2130
-
+//  lcd_setstatus("17"); // 20 Chars
 	st_init();    // Initialize stepper, this enables interrupts!
+//  lcd_setstatus("18"); // 20 Chars
   
 #ifdef UVLO_SUPPORT
     setup_uvlo_interrupt();
@@ -1299,16 +1311,19 @@ void setup()
 #endif // PSU_Delta
     
 	setup_photpin();
+//  lcd_setstatus("19"); // 20 Chars
 
 	servo_init();
+//  lcd_setstatus("20"); // 20 Chars
 	// Reset the machine correction matrix.
 	// It does not make sense to load the correction matrix until the machine is homed.
 	world2machine_reset();
+//  lcd_setstatus("21"); // 20 Chars
     
 #ifdef FILAMENT_SENSOR
 	fsensor_init();
 #endif //FILAMENT_SENSOR
-
+//  lcd_setstatus("22"); // 20 Chars
 
 #if defined(CONTROLLERFAN_PIN) && (CONTROLLERFAN_PIN > -1)
 	SET_OUTPUT(CONTROLLERFAN_PIN); //Set pin used for driver cooling fan
@@ -1316,6 +1331,7 @@ void setup()
 
 
 	setup_homepin();
+//  lcd_setstatus("23"); // 20 Chars
 
 #ifdef TMC2130
 
@@ -1333,6 +1349,7 @@ void setup()
     }
   }
 #endif //TMC2130
+//lcd_setstatus("24"); // 20 Chars
 
 #if defined(Z_AXIS_ALWAYS_ON) && !defined(PSU_Delta)
 	enable_z();
@@ -1362,6 +1379,7 @@ void setup()
 #endif //TMC2130
 		eeprom_write_byte((uint8_t*)EEPROM_WIZARD_ACTIVE, 1); //run wizard
 	}
+//  lcd_setstatus("25"); // 20 Chars
 
 	// Force SD card update. Otherwise the SD card update is done from loop() on card.checkautostart(false), 
 	// but this times out if a blocking dialog is shown in setup().

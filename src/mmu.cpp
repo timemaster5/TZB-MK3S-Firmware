@@ -113,6 +113,7 @@ void mmu_unload_synced(uint16_t _filament_type_speed);
 
 //idler ir sensor
 static bool mmu_idl_sens = false;
+static bool MMU_IRSENS = false;
 bool ir_sensor_detected = false;
 
 //if IR_SENSOR defined, always returns true
@@ -164,7 +165,6 @@ void mmu_init(void)
   pinMode(MMU_RST_PIN, OUTPUT); //setup reset pin
 #endif                          //MMU_HWRESET
   uart2_init();                 //init uart2
-  _delay_ms(10);                //wait 10ms for sure
   mmu_reset();                  //reset mmu (HW or SW), do not wait for response
   mmu_state = S::Init;
   PIN_INP(IR_SENSOR_PIN); //input mode
@@ -213,6 +213,7 @@ void mmu_loop(void)
   if (confPayload) { mmu_last_response = _millis(); confirmedPayload = false; }
   else { tData1 = ' '; tData2 = ' '; tData3 = ' '; tData4 = ' '; tData5 = ' '; }
   if (confFINDA) { mmu_finda = tFINDA; confirmedFINDA = false; }
+  if (atomic_MMU_IRSENS) { MMU_IRSENS = true; atomic_MMU_IRSENS = false; }
   sei();
 
   // All Notification & Status Updates between MK3S/MMU2S
@@ -253,8 +254,7 @@ void mmu_loop(void)
       #ifdef OCTO_NOTIFICATIONS_ON
       printf_P(PSTR("// action:mmuFailedLoadIR_SENSOR\n"));
       #endif // OCTO_NOTIFICATIONS_ON
-      MMU_IRSENS = false;
-      mmu_state = S::Wait; }
+      MMU_IRSENS = false; }
     else if ((tData1 == 'Z') && (tData2 == 'U')) { // MMU Unloading Failed
                                              //********************
       lcd_setstatus(" MMU Unload Failed  "); // 20 Chars
@@ -388,6 +388,9 @@ void mmu_loop(void)
       tmp_extruder = tData3;
       mmu_extruder = tmp_extruder;
       printf_P(PSTR("MMU2S => MK32S 'Active Extruder:%d'\n"), tmp_extruder + 1);
+      #ifdef MMU_FORCE_STEALTH_MODE
+	    SilentModeMenu_MMU = 1;
+      #endif
       unsigned char tempSetMode[5] = {'M', SilentModeMenu_MMU, BLK, BLK, BLK};
       uart2_txPayload(tempSetMode);
       mmu_state = S::SetModeInit;
@@ -400,6 +403,7 @@ void mmu_loop(void)
       puts_P(PSTR("MMU - ENABLED"));
       fSetMmuMode(true);
       mmu_enabled = true;
+      mmu_ready = true;
       mmu_state = S::Idle;
     }
     return; // Exit method.
@@ -469,7 +473,7 @@ void mmu_loop(void)
         printf_P(PSTR("MK32S => MMU2S 'F%d %d'\n"), extruder, mmu_filament_types[extruder]);
         uart2_txPayload(tempTxCMD);
         mmu_state = S::Wait;
-      }      
+      }
       mmu_cmd = MmuCmd::None;
     }
     else if ((eeprom_read_byte((uint8_t*)EEPROM_MMU_STEALTH) != SilentModeMenu_MMU) && mmu_ready)
@@ -499,23 +503,6 @@ void mmu_loop(void)
       mmu_ready = true;
       mmu_state = S::Idle;
     }
-    else if ((mmu_last_request + (MMU_CMD_TIMEOUT/2)) < _millis())
-		{ //resend request after timeout (2.5mins)
-			if (mmu_last_cmd != MmuCmd::None)
-			{
-				if (mmu_attempt_nr++ < MMU_MAX_RESEND_ATTEMPTS)
-				{
-          printf_P(PSTR("MMU Retry Attempt Number:%d\n"), mmu_attempt_nr -1);
-					mmu_cmd = mmu_last_cmd;
-          mmu_state = S::Idle;
-				} else {
-					mmu_cmd = MmuCmd::None;
-					mmu_last_cmd = MmuCmd::None; //check
-					mmu_attempt_nr = 0;
-				}
-			}
-			mmu_state = S::Idle;
-		}
     return; // Exit method.
   }
 } // End of mmu_loop() method.
@@ -566,11 +553,14 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
 bool mmu_get_response(void)
 {
 	KEEPALIVE_STATE(IN_PROCESS);
-	while (mmu_cmd != MmuCmd::None) delay_keep_alive(100);
+	while (mmu_cmd != MmuCmd::None) {
+    lcd_setstatus("Locked"); // 20 Chars
+    delay_keep_alive(100);
+  }
 	while (!mmu_ready) {
     mmu_loop();
     if (mmu_idl_sens && MMU_IRSENS) {
-      for (uint8_t i = 0; i < 600; i++) {
+      for (uint8_t i = 0; i < 48; i++) {
         if (can_extrude() && PIN_GET(IR_SENSOR_PIN)) mmu_load_step();
         else break;
       }
@@ -581,12 +571,10 @@ bool mmu_get_response(void)
       }
       MMU_IRSENS = false;
     }
-    if (mmu_state == S::Wait && ((mmu_last_response + MMU_CMD_TIMEOUT) > millis())) delay_keep_alive(100);
+    if (mmu_state == S::Wait && mmu_last_response + MMU_CMD_TIMEOUT > _millis()) delay_keep_alive(100);
     else break;
 	}
-	bool ret = mmu_ready;
-	mmu_ready = false;
-	return ret;
+	return mmu_ready;
 }
 
 //! @brief Wait for active extruder to reach temperature set
@@ -611,12 +599,13 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
 	float x_position_bckp = current_position[X_AXIS];
 	float y_position_bckp = current_position[Y_AXIS];
 	uint8_t screen = 0; //used for showing multiscreen messages
+  //bool mmu_response = mmu_get_response();
 	while(!mmu_get_response())
 	{
-    shutdownE0();  // Drop E0 Currents to 0.
     if (!mmu_print_saved) { //first occurence, we are saving current position, park print head in certain position and disable nozzle heater
       uint8_t mmu_fail = eeprom_read_byte((uint8_t *)EEPROM_MMU_FAIL);
       uint16_t mmu_fail_tot = eeprom_read_word((uint16_t *)EEPROM_MMU_FAIL_TOT);
+      shutdownE0();  // Drop E0 Currents to 0.
       if (mmu_fail < 255)
         eeprom_update_byte((uint8_t *)EEPROM_MMU_FAIL, mmu_fail + 1);
       if (mmu_fail_tot < 65535)
@@ -674,20 +663,25 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
     int chars = lcd_printf_P(_N("%c%3d/%d%c"), LCD_STR_THERMOMETER[0],(int)(degHotend(active_extruder) + 0.5), (int)(degTargetHotend(active_extruder) + 0.5), LCD_STR_DEGREE[0]);
     lcd_space(9 - chars);
 
-
-    //5 seconds delay
-    for (uint8_t i = 0; i < 50; i++) {
-      if (lcd_clicked()) {
-        setTargetHotend(hotend_temp_bckp, active_extruder);
-        break;
+    // 5 seconds delay
+    for (uint8_t r = 0; r < 5; r++)
+    {
+      for (uint8_t i = 0; i < 10; i++) {
+        if (lcd_clicked()) {
+          setTargetHotend(hotend_temp_bckp, active_extruder);
+          break;
+        }
+        delay_keep_alive(100);
       }
-      delay_keep_alive(100);
+      //_response = mmu_get_response();
     }
-		
+    //_delay(100);
+    //mmu_response = mmu_get_response();
 	}
   if (mmu_print_saved) {
     printf_P(PSTR("MMU starts responding\n"));
     KEEPALIVE_STATE(IN_HANDLER);
+    shutdownE0(false);  // Reset E0 Currents.
     if (turn_off_nozzle)
     {
     lcd_clear();
@@ -720,7 +714,7 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
     }
   }
 	if (lcd_update_was_enabled) lcd_update_enable(true);
-  shutdownE0(false);  // Reset E0 Currents.
+  shutdownE0(false);  // Reset E0 Currents. May not be required here as well as after resume code above.
 }
 
 void shutdownE0(bool shutdown)
@@ -1090,7 +1084,7 @@ static bool can_load()
         if(0 == PIN_GET(IR_SENSOR_PIN)) ++filament_detected_count;
     }
     if (filament_detected_count > steps - 4) {
-      current_position[E_AXIS] += 6;
+      current_position[E_AXIS] += 3;
       plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
       st_synchronize();
       return true;

@@ -107,7 +107,6 @@ void checkIR_SENSOR(void);
 uint16_t toolChanges = 0;
 uint8_t mmuE0BackupCurrents[2] = {0, 0};
 #define TXTimeout 60 //60ms
-//uint8_t unload_filament_type[3] = {0, 0, 0};
 uint8_t mmu_filament_types[5] = {0, 0, 0, 0, 0};
 void mmu_unload_synced(uint16_t _filament_type_speed);
 
@@ -553,14 +552,11 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
 bool mmu_get_response(void)
 {
 	KEEPALIVE_STATE(IN_PROCESS);
-	while (mmu_cmd != MmuCmd::None) {
-    lcd_setstatus("Locked"); // 20 Chars
-    delay_keep_alive(100);
-  }
+	while (mmu_cmd != MmuCmd::None) { delay_keep_alive(100); }
 	while (!mmu_ready) {
     mmu_loop();
     if (mmu_idl_sens && MMU_IRSENS) {
-      for (uint8_t i = 0; i < 48; i++) {
+      for (uint8_t i = 0; i < 75; i++) {
         if (can_extrude() && PIN_GET(IR_SENSOR_PIN)) mmu_load_step();
         else break;
       }

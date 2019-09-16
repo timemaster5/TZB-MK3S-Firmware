@@ -125,7 +125,7 @@ bool check_for_ir_sensor()
 
 	bool detected = false;
 	//if IR_SENSOR_PIN input is low and pat9125sensor is not present we detected idler sensor
-	if ((PIN_GET(IR_SENSOR_PIN) == 0) 
+	if (isEXTLoaded() 
 #ifdef PAT9125
 		&& fsensor_not_responding
 #endif //PAT9125
@@ -522,8 +522,10 @@ void mmu_set_filament_type(uint8_t extruder, uint8_t filament)
 {
   mmu_filament_types[extruder] = filament;
   printf_P(PSTR("MK3 => 'F%d %d'\n"), extruder, filament);
-  unsigned char tempFx[5] = {'F', extruder, filament, BLK, BLK};
-  uart2_txPayload(tempFx);
+  //unsigned char tempFx[5] = {'F', extruder, filament, BLK, BLK};
+  //uart2_txPayload(tempFx);
+  mmu_command(MmuCmd::F0 + filament);
+  manage_response(false, false);
 } // End of mmu_set_filament_type() method.
 
 //! @brief Enqueue MMUv2 command
@@ -558,10 +560,10 @@ bool mmu_get_response(void)
     mmu_loop();
     if (mmu_idl_sens && MMU_IRSENS) {
       for (uint8_t i = 0; i < 75; i++) {
-        if (can_extrude() && PIN_GET(IR_SENSOR_PIN)) mmu_load_step();
+        if (can_extrude() && !isEXTLoaded()) mmu_load_step();
         else break;
       }
-      if (PIN_GET(IR_SENSOR_PIN) == 0) {
+      if (isEXTLoaded()) {
         uart2_txPayload((unsigned char *)"IRSEN");
         printf_P(PSTR("MK32S => MMU2S 'Filament seen at extruder'\n"));
         mmu_idl_sens = false;
@@ -1033,7 +1035,7 @@ void lcd_mmu_load_to_nozzle(uint8_t filament_nr)
     sprintf_P(msg, PSTR("MMU Loading Ext:%d"), (tmp_extruder + 1));
                       //********************
     lcd_setstatus(msg); // 20 Chars 
-    if (PIN_GET(IR_SENSOR_PIN) == 0) mmu_filament_ramming();
+    if (isEXTLoaded()) mmu_filament_ramming();
     mmu_command(MmuCmd::T0 + tmp_extruder);
     manage_response(true, true);
     mmu_continue_loading();
@@ -1078,7 +1080,7 @@ static bool can_load()
         current_position[E_AXIS] -= e_increment;
         plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
         st_synchronize();
-        if(0 == PIN_GET(IR_SENSOR_PIN)) ++filament_detected_count;
+        if(isEXTLoaded()) ++filament_detected_count;
     }
     if (filament_detected_count > steps - 4) {
       current_position[E_AXIS] += 3;
@@ -1182,29 +1184,25 @@ void mmu_eject_filament(uint8_t filament, bool recover)
 {
   if (filament < 5)
   {
-
-    if (degHotend0() > EXTRUDE_MINTEMP)
-    {
-      st_synchronize();
-      {
-        LcdUpdateDisabler disableLcdUpdate;
-        lcd_clear();
-        lcd_set_cursor(0, 1);
-        lcd_puts_P(_i("Ejecting filament"));
-        filament_ramming();
-        mmu_command(MmuCmd::E0 + filament);
-        manage_response(false, false); //, MMU_UNLOAD_MOVE);
-        if (recover)
-        {
-          lcd_show_fullscreen_message_and_wait_P(_i("Please remove filament and then press the knob."));
-          mmu_command(MmuCmd::R0);
-          manage_response(false, false);
-        }
-      }
-    }
-    else
-    {
+    if (degHotend0() <= EXTRUDE_MINTEMP && isEXTLoaded()) {
       show_preheat_nozzle_warning();
+      return;
+    }
+    if (!PIN_GET(IR_SENSOR_PIN)) {
+      st_synchronize();
+      LcdUpdateDisabler disableLcdUpdate;
+      lcd_clear();
+      lcd_set_cursor(0, 1);
+      lcd_puts_P(_i("Ejecting filament"));
+      if (isEXTLoaded() && can_extrude()) filament_ramming();
+      mmu_command(MmuCmd::E0 + filament);
+      manage_response(false, false);
+      if (recover)
+      {
+        lcd_show_fullscreen_message_and_wait_P(_i("Please remove filament and then press the knob."));
+        mmu_command(MmuCmd::R0);
+        manage_response(false, false);
+      }
     }
   }
   else

@@ -520,6 +520,7 @@ void mmu_reset(void)
 
 void mmu_set_filament_type(uint8_t extruder, uint8_t filament)
 {
+  mmu_filament_types[extruder] = filament;
   printf_P(PSTR("MK3 => 'F%d %d'\n"), extruder, filament);
   unsigned char tempFx[5] = {'F', extruder, filament, BLK, BLK};
   uart2_txPayload(tempFx);
@@ -1104,8 +1105,9 @@ static void increment_load_fail()
 //! @retval false Doesn't fit
 static void mmu_continue_loading(void)
 {
-  if (!ir_sensor_detected) {
+  if (!ir_sensor_detected || mmu_filament_types[mmu_extruder] == 1) {
     mmu_command(MmuCmd::C0);
+    manage_response(true, true);
     return;
   }
   mmu_command(MmuCmd::C0);

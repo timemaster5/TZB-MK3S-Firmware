@@ -253,6 +253,7 @@ void mmu_loop(void)
       #ifdef OCTO_NOTIFICATIONS_ON
       printf_P(PSTR("// action:mmuFailedLoadIR_SENSOR\n"));
       #endif // OCTO_NOTIFICATIONS_ON
+      mmu_idl_sens = true; // To cover possible state where this trips off but error still happens from MMU2S
       MMU_IRSENS = false; }
     else if ((tData1 == 'Z') && (tData2 == 'U')) { // MMU Unloading Failed
                                              //********************
@@ -772,10 +773,10 @@ void mmu_load_to_nozzle()
 void mmu_M600_wait_and_beep()
 {
   //Beep and wait for user to remove old filament and prepare new filament for load
-
+  long timemark = _millis();
+  bool timedout = false;
   shutdownE0();
   float hotend_temp_bckp = degTargetHotend(active_extruder);
-  setAllTargetHotends(0);
   KEEPALIVE_STATE(PAUSED_FOR_USER);
 
   int counterBeep = 0;
@@ -786,6 +787,7 @@ void mmu_M600_wait_and_beep()
   {
     manage_heater();
     manage_inactivity(true);
+    if (!timedout && timemark + MMU_CMD_TIMEOUT < _millis()) { setAllTargetHotends(0); timedout = true; }
     #if BEEPER > 0
     if (counterBeep == 500)
       counterBeep = 0;
@@ -1124,57 +1126,68 @@ static void mmu_continue_loading(void)
 
   while (!success)
   {
-      switch (state)
-      {
-      case Ls::Enter:
-          increment_load_fail();
-          state = Ls::Unload;
-          break;
-      case Ls::Retry:
-          #ifdef MMU_HAS_CUTTER
-          if (1 == eeprom_read_byte((uint8_t*)EEPROM_MMU_CUTTER_ENABLED))
-          {
-              mmu_command(MmuCmd::K0 + tmp_extruder);
-              manage_response(true, true, MMU_UNLOAD_MOVE);
-          }
-          #endif //MMU_HAS_CUTTER
-          mmu_command(MmuCmd::T0 + tmp_extruder);
-          manage_response(true, true);
-          mmu_command(MmuCmd::C0);
-          manage_response(true, true);
-          success = can_load();
-          state = Ls::Unload;
-          break;
-      case Ls::Unload:
-          printf_P(PSTR("Jam, Malformed Tip or Clog.\n"));
-          #ifdef OCTO_NOTIFICATIONS_ON
-          printf_P(PSTR("// action:jamDetected\n"));
-          #endif // OCTO_NOTIFICATIONS_ON
-          stop_and_save_print_to_ram(0, 0);
+    switch (state)
+    {
+    case Ls::Enter:
+        increment_load_fail();
+        state = Ls::Unload;
+        break;
+    case Ls::Retry:
+        #ifdef MMU_HAS_CUTTER
+        if (1 == eeprom_read_byte((uint8_t*)EEPROM_MMU_CUTTER_ENABLED))
+        {
+            mmu_command(MmuCmd::K0 + tmp_extruder);
+            manage_response(true, true, MMU_UNLOAD_MOVE);
+        }
+        #endif //MMU_HAS_CUTTER
+        mmu_command(MmuCmd::T0 + tmp_extruder);
+        manage_response(true, true);
+        mmu_command(MmuCmd::C0);
+        manage_response(true, true);
+        success = can_load();
+        state = Ls::Unload;
+        break;
+    case Ls::Unload:
+        printf_P(PSTR("Jam, Malformed Tip or Clog.\n"));
+        #ifdef OCTO_NOTIFICATIONS_ON
+        printf_P(PSTR("// action:jamDetected\n"));
+        #endif // OCTO_NOTIFICATIONS_ON
+        stop_and_save_print_to_ram(0, 0);
 
-          //lift z
-          current_position[Z_AXIS] += Z_PAUSE_LIFT;
-          if (current_position[Z_AXIS] > Z_MAX_POS) current_position[Z_AXIS] = Z_MAX_POS;
-          plan_buffer_line_curposXYZE(15, active_extruder);
-          st_synchronize();
+        //lift z
+        current_position[Z_AXIS] += Z_PAUSE_LIFT;
+        if (current_position[Z_AXIS] > Z_MAX_POS) current_position[Z_AXIS] = Z_MAX_POS;
+        plan_buffer_line_curposXYZE(15, active_extruder);
+        st_synchronize();
 
-          //Move XY to side
-          current_position[X_AXIS] = X_PAUSE_POS;
-          current_position[Y_AXIS] = Y_PAUSE_POS;
-          plan_buffer_line_curposXYZE(50, active_extruder);
-          st_synchronize();
+        //Move XY to side
+        current_position[X_AXIS] = X_PAUSE_POS;
+        current_position[Y_AXIS] = Y_PAUSE_POS;
+        plan_buffer_line_curposXYZE(50, active_extruder);
+        st_synchronize();
 
-          mmu_command(MmuCmd::U0);
-          manage_response(false, true);
+        mmu_command(MmuCmd::U0);
+        manage_response(false, true);
 
-          setAllTargetHotends(0);
-          lcd_setstatuspgm(_i("Heatbreak Jam :'(   "));////c=20 r=1
-
-          marlin_wait_for_click();
-          restore_print_from_ram_and_continue(0);
-          state = Ls::Retry;
-          break;
-      }
+        setAllTargetHotends(0);
+        lcd_update_enable(false);
+        lcd_clear(); //********************
+        lcd_set_cursor(0, 0);
+        lcd_puts_P(_i("                    "));
+        lcd_set_cursor(0, 1);
+        lcd_puts_P(_i(" Heatbreak Jam/Clog "));
+        lcd_set_cursor(0, 2);
+        lcd_puts_P(_i("Click wheel to retry"));
+        lcd_set_cursor(0, 3);
+        lcd_puts_P(_i("                    "));
+        marlin_wait_for_click();
+        lcd_setstatuspgm(_T(WELCOME_MSG));
+        lcd_return_to_status();
+        lcd_update_enable(true);
+        restore_print_from_ram_and_continue(0);
+        state = Ls::Retry;
+        break;
+    }
   }
 }
 

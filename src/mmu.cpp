@@ -1199,7 +1199,7 @@ void mmu_eject_filament(uint8_t filament, bool recover)
       show_preheat_nozzle_warning();
       return;
     }
-    if (!PIN_GET(IR_SENSOR_PIN)) {
+    else {
       st_synchronize();
       LcdUpdateDisabler disableLcdUpdate;
       lcd_clear();

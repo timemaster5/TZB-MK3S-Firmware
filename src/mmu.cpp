@@ -717,6 +717,7 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
 
 void shutdownE0(bool shutdown)
 {
+  #ifdef TMC2130
   if (shutdown && ((tmc2130_current_h[E_AXIS] != 0) && (tmc2130_current_r[E_AXIS] != 0))) {
       mmuE0BackupCurrents[0] = tmc2130_current_h[E_AXIS];
       mmuE0BackupCurrents[1] = tmc2130_current_r[E_AXIS];
@@ -728,6 +729,9 @@ void shutdownE0(bool shutdown)
       tmc2130_set_current_r(E_AXIS, mmuE0BackupCurrents[1]);
       printf_P(PSTR("E-AXIS Enabled.\n"));
   }
+  #else
+  if (shutdown) disable_e0();
+  #endif //TMC2130
 }
 
 //! @brief load filament to nozzle of multimaterial printer

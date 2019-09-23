@@ -535,8 +535,9 @@ void mmu_set_filament_type(uint8_t extruder, uint8_t filament)
 //! If T or L command is enqueued, it marks filament loaded in AutoDeplete module.
 void mmu_command(MmuCmd cmd)
 {
-  if (((cmd >= MmuCmd::T0) && (cmd <= MmuCmd::T4)) || ((cmd >= MmuCmd::E0) && (cmd <= MmuCmd::E4)))
-    shutdownE0();
+  if ((cmd >= MmuCmd::T0) && (cmd <= MmuCmd::T4)) { ad_markLoaded(cmd - MmuCmd::T0); shutdownE0(); }
+  if ((cmd >= MmuCmd::L0) && (cmd <= MmuCmd::L4)) ad_markLoaded(cmd - MmuCmd::L0);
+  if ((cmd >= MmuCmd::E0) && (cmd <= MmuCmd::E4)) shutdownE0();
   mmu_last_cmd = mmu_cmd;
   mmu_cmd = cmd;
   mmu_ready = false;

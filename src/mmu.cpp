@@ -272,7 +272,7 @@ void mmu_loop(void)
       lcd_setstatus("   MMU Setup Menu   "); } // 20 Chars
     else if ((tData1 == 'X') && (tData2 == '2')) { // MMU Adj Bowden Len
                                              //********************
-      lcd_setstatus("MMU Adj BowLen/Bond "); } // 20 Chars
+      lcd_setstatus("MMU Adj BowdenLength"); } // 20 Chars
     else if ((tData1 == 'X') && (tData2 == '5')) { // MMU Setup Menu: Unlock EEPROM
                                              //********************
       lcd_setstatus(" MMU Unlock EEPROM  "); } // 20 Chars

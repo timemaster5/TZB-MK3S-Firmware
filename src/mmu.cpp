@@ -515,7 +515,6 @@ void mmu_reset(void)
   printf_P(PSTR("MK3S => MMU2S : HWR RESET\n"));
   digitalWrite(MMU_RST_PIN, HIGH);
   #else //SW - send X0 command
-  _delay(500);
   uart2_txPayload((unsigned char *)"X0---");
   #endif
 } // End of mmu_reset() method.

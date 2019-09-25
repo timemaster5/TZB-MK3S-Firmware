@@ -547,7 +547,7 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
 {
   shutdownE0(false);
   st_synchronize();
-  current_position[E_AXIS] -= 70;
+  current_position[E_AXIS] -= 20;
   plan_buffer_line_curposXYZE(_filament_type_speed, active_extruder);
   st_synchronize();
   shutdownE0();

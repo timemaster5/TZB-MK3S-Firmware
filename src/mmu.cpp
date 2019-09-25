@@ -561,7 +561,7 @@ bool mmu_get_response(void)
     mmu_loop();
     if (mmu_idl_sens && MMU_IRSENS) {
       for (uint8_t i = 0; i < 75; i++) {
-        if (can_extrude() && !isEXTLoaded) mmu_load_step();
+        if (!isEXTLoaded) mmu_load_step();
         else break;
       }
       if (isEXTLoaded) {
@@ -937,6 +937,7 @@ void mmu_filament_ramming()
 //!  * false non-blocking call
 void mmu_load_step(bool synchronize)
 {
+  shutdownE0(false);
   current_position[E_AXIS] = current_position[E_AXIS] + MMU_LOAD_FEEDRATE * 0.1;
   plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
   if (synchronize)

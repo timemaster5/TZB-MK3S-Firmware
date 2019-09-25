@@ -7770,6 +7770,7 @@ Sigma_Exit:
 	  else if (*(strchr_pointer + index) == 'c') { //load to from bondtech gears to nozzle (nozzle should be preheated)
 	  	if (mmu_enabled) 
 		{
+      mmu_continue_loading();
 			mmu_extruder = tmp_extruder; //filament change is finished
 			mmu_load_to_nozzle();
 		}

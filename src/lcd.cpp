@@ -189,7 +189,7 @@ static void lcd_begin(uint8_t clear)
 	#endif
 }
 
-int lcd_putchar(char c, FILE *)
+static int lcd_putchar(char c, FILE *)
 {
 	lcd_write(c);
 	return 0;

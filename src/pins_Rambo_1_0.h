@@ -1,8 +1,8 @@
 /*****************************************************************
-* Rambo mini 1.3 Pin Assignments
+* Rambo mini 1.0 Pin Assignments
 ******************************************************************/
 
-#define ELECTRONICS "RAMBo13a"
+#define ELECTRONICS "RAMBo10a"
 
 #define KNOWN_BOARD
 #ifndef __AVR_ATmega2560__
@@ -12,13 +12,7 @@
 #define PINDA_THERMISTOR
 
 #define SWI2C_SDA      20 //SDA on P3
-#define SWI2C_SCL      21 //SCL on P3
-
-#ifdef MICROMETER_LOGGING
-#define D_DATACLOCK		24	//Y_MAX (green)
-#define D_DATA			30	//X_MAX (blue)
-#define D_REQUIRE		23	//Z_MAX (white)
-#endif //MICROMETER_LOGGING
+#define SWI2C_SCL      84 //PH2 on P3, sensor cable must be rewired
 
 
 
@@ -93,22 +87,22 @@
 //#define KILL_PIN            32
 
 
-#define BEEPER              84  // Beeper on AUX-4
-#define LCD_PINS_RS         82
-#define LCD_PINS_ENABLE     18
-#define LCD_PINS_D4	        19
-#define LCD_PINS_D5         70
-#define LCD_PINS_D6         85
-#define LCD_PINS_D7         71
+#define BEEPER              78  // Beeper on AUX-4
+#define LCD_PINS_RS         38
+#define LCD_PINS_ENABLE      5
+#define LCD_PINS_D4	        14
+#define LCD_PINS_D5         15
+#define LCD_PINS_D6         32
+#define LCD_PINS_D7         31
 
 //buttons are directly attached using AUX-2
-#define BTN_EN1                72
-#define BTN_EN2                14
-#define BTN_ENC                 9  // the click
+#define BTN_EN1                80
+#define BTN_EN2                73
+#define BTN_ENC                21  // the click
 
-#define SDCARDDETECT           15
+#define SDCARDDETECT           72
 
-#define IR_SENSOR_PIN 20 //idler sensor
+#define IR_SENSOR_PIN 20 //idler sensor 
 
 // Support for an 8 bit logic analyzer, for example the Saleae.
 // Channels 0-2 are fast, they could generate 2.667Mhz waveform with a software loop.

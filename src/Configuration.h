@@ -17,7 +17,8 @@ extern PGM_P sPrinterName;
 
 // Firmware version
 #define FW_VERSION "TZB3.0.0"
-#define FW_COMMIT_NR   2457
+// BASED ON PRUSA Stock FW COMMIT_NR:3274 of 3.8.0+
+#define FW_COMMIT_NR   2458
 // FW_VERSION_UNKNOWN means this is an unofficial build.
 // The firmware should only be checked into github with this symbol.
 #define FW_DEV_VERSION FW_VERSION_RC
@@ -112,11 +113,6 @@ extern PGM_P sPrinterName;
 // Define this to have the electronics keep the power supply off on startup. If you don't know what this is leave it.
 // #define PS_DEFAULT_OFF
 
-
-
-// This makes temp sensor 1 a redundant sensor for sensor 0. If the temperatures difference between these sensors is to high the print will be aborted.
-//#define TEMP_SENSOR_1_AS_REDUNDANT
-#define MAX_REDUNDANT_TEMP_SENSOR_DIFF 10
 
 // Actual temperature must be close to target for this long before M109 returns success
 #define TEMP_RESIDENCY_TIME 3  // (seconds)

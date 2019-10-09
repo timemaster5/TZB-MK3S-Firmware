@@ -16,9 +16,9 @@ extern uint16_t nPrinterType;
 extern PGM_P sPrinterName;
 
 // Firmware version
-#define FW_VERSION "TZB3.0.0"
+#define FW_VERSION "TZB3.0.1"
 // BASED ON PRUSA Stock FW COMMIT_NR:3274 of 3.8.0+
-#define FW_COMMIT_NR   2462
+#define FW_COMMIT_NR   2463
 // FW_VERSION_UNKNOWN means this is an unofficial build.
 // The firmware should only be checked into github with this symbol.
 #define FW_DEV_VERSION FW_VERSION_RC
@@ -286,6 +286,8 @@ your extruder heater takes 2 minutes to hit the target on heating.
 #define Z_MAX_LENGTH (Z_MAX_POS - Z_MIN_POS)
 
 #define Z_HEIGHT_HIDE_LIVE_ADJUST_MENU 2.0f
+
+#define HOME_Z_SEARCH_THRESHOLD 0.15f             // Threshold of the Z height in calibration
 
 //============================= Bed Auto Leveling ===========================
 

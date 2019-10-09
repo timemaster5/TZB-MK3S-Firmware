@@ -17,8 +17,8 @@ extern PGM_P sPrinterName;
 
 // Firmware version
 #define FW_VERSION "TZB3.0.1"
-// BASED ON PRUSA Stock FW COMMIT_NR:3274 of 3.8.0+
-#define FW_COMMIT_NR   2463
+// BASED ON PRUSA Stock FW 3.8.1-RC1
+#define FW_COMMIT_NR   2465
 // FW_VERSION_UNKNOWN means this is an unofficial build.
 // The firmware should only be checked into github with this symbol.
 #define FW_DEV_VERSION FW_VERSION_RC

@@ -961,9 +961,8 @@ void extr_unload_()
       bFilamentPreheatState = true;
       mFilamentItem(target_temperature[0], target_temperature_bed);
     }
-    //     else menu_submenu(mFilamentMenu);
     else
-      mFilamentMenu();
+      lcd_generic_preheat_menu();
   }
 }
 

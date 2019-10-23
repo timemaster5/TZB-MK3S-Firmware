@@ -21,7 +21,6 @@
 #endif //TMC2130
 
 #define CHECK_FINDA ((IS_SD_PRINTING || is_usb_printing) && (mcode_in_progress != 600) && !saved_printing && e_active())
-#define isEXTLoaded (PIN_GET(IR_SENSOR_PIN) == 0)
 
 #define MMU_TODELAY 100
 #define MMU_TIMEOUT 10

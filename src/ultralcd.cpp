@@ -2502,6 +2502,12 @@ static void mFilamentItem_farm_nozzle()
     mFilamentItem(FARM_PREHEAT_HOTEND_TEMP, 0);
 }
 
+static void mFilamentItem_PRE()
+{
+    bFilamentPreheatState = false;
+    mFilamentItem(previous_target_temperature[active_extruder], target_temperature_bed);
+}
+
 static void mFilamentItem_PLA()
 {
     bFilamentPreheatState = false;
@@ -2576,6 +2582,9 @@ void lcd_generic_preheat_menu()
     }
     else
     {
+		if (previous_target_temperature[active_extruder] > 0) {
+			MENU_ITEM_SUBMENU_P(PSTR("Previous EXT"), mFilamentItem_PRE);
+		}
         MENU_ITEM_SUBMENU_P(PSTR("PLA  -  " STRINGIFY(PLA_PREHEAT_HOTEND_TEMP) "/" STRINGIFY(PLA_PREHEAT_HPB_TEMP)),mFilamentItem_PLA);
         MENU_ITEM_SUBMENU_P(PSTR("PET  -  " STRINGIFY(PET_PREHEAT_HOTEND_TEMP) "/" STRINGIFY(PET_PREHEAT_HPB_TEMP)),mFilamentItem_PET);
         MENU_ITEM_SUBMENU_P(PSTR("ASA  -  " STRINGIFY(ASA_PREHEAT_HOTEND_TEMP) "/" STRINGIFY(ASA_PREHEAT_HPB_TEMP)),mFilamentItem_ASA);

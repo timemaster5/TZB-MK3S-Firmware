@@ -7248,6 +7248,9 @@ Sigma_Exit:
 		while ( ((!is_pinda_cooling) && (!cancel_heatup) && (current_temperature_pinda < set_target_pinda)) || (is_pinda_cooling && (current_temperature_pinda > set_target_pinda)) ) {
 			if ((_millis() - codenum) > 1000) //Print Temp Reading every 1 second while waiting.
 			{
+        char lcdStatus[20];
+        sprintf_P(lcdStatus, _N("  PINDA %5.2f/%d"), current_temperature_pinda, set_target_pinda);
+        lcd_setstatus(lcdStatus);
 				SERIAL_PROTOCOLPGM("P:");
 				SERIAL_PROTOCOL_F(current_temperature_pinda, 1);
 				SERIAL_PROTOCOLPGM("/");
@@ -7257,7 +7260,7 @@ Sigma_Exit:
 			}
 			manage_heater();
 			manage_inactivity();
-			lcd_update(0);
+      lcd_update(0);
 		}
 		LCD_MESSAGERPGM(MSG_OK);
 
@@ -9865,6 +9868,7 @@ void recover_machine_state_after_power_panic(bool bTiny)
   // 7) Recover the target temperatures.
   target_temperature[active_extruder] = eeprom_read_byte((uint8_t*)EEPROM_UVLO_TARGET_HOTEND);
   target_temperature_bed = eeprom_read_byte((uint8_t*)EEPROM_UVLO_TARGET_BED);
+  previous_target_temperature[active_extruder] = target_temperature[active_extruder];
 
   // 8) Recover extruder multipilers
   extruder_multiplier[0] = eeprom_read_float((float*)(EEPROM_EXTRUDER_MULTIPLIER_0));

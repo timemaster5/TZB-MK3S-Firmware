@@ -955,10 +955,10 @@ void extr_unload_()
   {
     eFilamentAction = FilamentAction::MmuUnLoad;
     bFilamentFirstRun = false;
-    if (target_temperature[0] >= EXTRUDE_MINTEMP)
+    if (target_temperature[active_extruder] >= EXTRUDE_MINTEMP)
     {
       bFilamentPreheatState = true;
-      mFilamentItem(target_temperature[0], target_temperature_bed);
+      mFilamentItem(target_temperature[active_extruder], target_temperature_bed);
     }
     else
       lcd_generic_preheat_menu();

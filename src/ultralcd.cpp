@@ -674,6 +674,14 @@ void lcdui_print_cmd_diag(void)
 }
 #endif //CMD_DIAGNOSTICS
 
+// Print M860 Pinda Wait to SetTemp Status (8 chars total)
+void lcdui_print_m860()
+{
+	int chars = 0;
+	chars = lcd_printf_P(_N("P%4.1f/%2d"), current_temperature_pinda, set_target_pinda);
+	lcd_space(8 - chars);
+}
+
 // Print time (8 chars total)
 void lcdui_print_time(void)
 {
@@ -926,8 +934,8 @@ void lcdui_print_status_screen(void)
     //Print cmd queue diagnostics (8chars)
 	lcdui_print_cmd_diag();
 #else
-    //Print time (8chars)
-	lcdui_print_time();
+	if (m860Active) lcdui_print_m860(); //Print PINDA temp (8chars)
+	else lcdui_print_time(); //Print time (8chars)
 #endif //CMD_DIAGNOSTICS
 
     lcd_set_cursor(0, 3); //line 3

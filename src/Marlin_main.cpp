@@ -192,7 +192,8 @@ int bowden_length[4] = {385, 385, 385, 385};
 
 bool is_usb_printing = false;
 bool homing_flag = false;
-
+bool m860Active = false;
+int set_target_pinda = 0;
 bool temp_cal_active = false;
 
 unsigned long kicktime = _millis()+100000;
@@ -7222,10 +7223,9 @@ Sigma_Exit:
   */
 	case 860: 
 	{
-		int set_target_pinda = 0;
-
 		if (code_seen('S')) {
 			set_target_pinda = code_value();
+      m860Active = true;
 		}
 		else {
 			break;
@@ -7248,9 +7248,6 @@ Sigma_Exit:
 		while ( ((!is_pinda_cooling) && (!cancel_heatup) && (current_temperature_pinda < set_target_pinda)) || (is_pinda_cooling && (current_temperature_pinda > set_target_pinda)) ) {
 			if ((_millis() - codenum) > 1000) //Print Temp Reading every 1 second while waiting.
 			{
-        char lcdStatus[20];
-        sprintf_P(lcdStatus, _N("  PINDA %5.2f/%d"), current_temperature_pinda, set_target_pinda);
-        lcd_setstatus(lcdStatus);
 				SERIAL_PROTOCOLPGM("P:");
 				SERIAL_PROTOCOL_F(current_temperature_pinda, 1);
 				SERIAL_PROTOCOLPGM("/");
@@ -7262,8 +7259,8 @@ Sigma_Exit:
 			manage_inactivity();
       lcd_update(0);
 		}
+    m860Active = false;
 		LCD_MESSAGERPGM(MSG_OK);
-
 		break;
 	}
  

@@ -767,7 +767,7 @@ void plan_buffer_line(float x, float y, float z, const float &e, float feed_rate
   #ifdef PREVENT_DANGEROUS_EXTRUDE
   if(target[E_AXIS]!=position[E_AXIS])
   {
-    if(degHotend(active_extruder)<extrude_min_temp)
+    if(degHotend(active_extruder)<extrude_min_temp && !mmu_idl_sens)
     {
       position[E_AXIS]=target[E_AXIS]; //behave as if the move really took place, but ignore E part
       #ifdef LIN_ADVANCE

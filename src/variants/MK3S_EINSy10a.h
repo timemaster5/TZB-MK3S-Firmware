@@ -36,6 +36,8 @@
 //#define E3D_PT100_BED_WITH_AMP
 //#define E3D_PT100_BED_NO_AMP
 
+// WEH002004 OLED Display uncomment WEH002004_OLED if have this kind of display
+#define WEH002004_OLED
 
 /*------------------------------------
  AXIS SETTINGS

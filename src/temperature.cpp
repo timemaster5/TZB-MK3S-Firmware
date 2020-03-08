@@ -44,6 +44,8 @@
 #include "Timer.h"
 #include "Configuration_prusa.h"
 
+#include "config.h"
+
 //===========================================================================
 //=============================public variables============================
 //===========================================================================
@@ -71,6 +73,10 @@ int current_voltage_raw_pwr = 0;
 #ifdef VOLT_BED_PIN
 int current_voltage_raw_bed = 0;
 #endif
+
+#if IR_SENSOR_ANALOG
+int current_voltage_raw_IR = 0;
+#endif //IR_SENSOR_ANALOG
 
 int current_temperature_bed_raw = 0;
 float current_temperature_bed = 0.0;
@@ -250,7 +256,7 @@ static void temp_runaway_stop(bool isPreheat, bool isBed);
   if (extruder<0)
   {
      soft_pwm_bed = (MAX_BED_POWER)/2;
-	  OCR0B = (int)(soft_pwm_bed << 1);
+	 timer02_set_pwm0(soft_pwm_bed << 1);
      bias = d = (MAX_BED_POWER)/2;
      target_temperature_bed = (int)temp; // to display the requested target bed temperature properly on the main screen
    }
@@ -291,7 +297,7 @@ static void temp_runaway_stop(bool isPreheat, bool isBed);
           if (extruder<0)
 		  {
             soft_pwm_bed = (bias - d) >> 1;
-			      OCR0B = (int)(soft_pwm_bed << 1);
+			timer02_set_pwm0(soft_pwm_bed << 1);
 		  }
           else
             soft_pwm[extruder] = (bias - d) >> 1;
@@ -348,7 +354,7 @@ static void temp_runaway_stop(bool isPreheat, bool isBed);
           if (extruder<0)
 		  {
             soft_pwm_bed = (bias + d) >> 1;
-			      OCR0B = (int)(soft_pwm_bed << 1);
+			timer02_set_pwm0(soft_pwm_bed << 1);
 		  }
           else
             soft_pwm[extruder] = (bias + d) >> 1;
@@ -506,7 +512,7 @@ void checkFanSpeed()
 		// we may even send some info to the LCD from here
 		fan_check_error = EFCE_FIXED;
 	}
-  if ((fan_check_error == EFCE_FIXED) && !PRINTER_ACTIVE){
+	if ((fan_check_error == EFCE_FIXED) && !PRINTER_ACTIVE){
 		fan_check_error = EFCE_OK; //if the issue is fixed while the printer is doing nothing, reenable processing immediately.
 		lcd_reset_alert_level(); //for another fan speed error
 	}
@@ -805,11 +811,11 @@ void manage_heater()
 	  if(current_temperature_bed < BED_MAXTEMP)
 	  {
 	    soft_pwm_bed = (int)pid_output >> 1;
-		  OCR0B = (int)(soft_pwm_bed << 1);
+		timer02_set_pwm0(soft_pwm_bed << 1);
 	  }
 	  else {
 	    soft_pwm_bed = 0;
-		  OCR0B = (int)(soft_pwm_bed << 1);
+		timer02_set_pwm0(soft_pwm_bed << 1);
 	  }
 
     #elif !defined(BED_LIMIT_SWITCHING)
@@ -819,18 +825,18 @@ void manage_heater()
         if(current_temperature_bed >= target_temperature_bed)
         {
           soft_pwm_bed = 0;
-		      OCR0B = (int)(soft_pwm_bed << 1);
+		  timer02_set_pwm0(soft_pwm_bed << 1);
         }
         else 
         {
           soft_pwm_bed = MAX_BED_POWER>>1;
-		      OCR0B = (int)(soft_pwm_bed << 1);
+		  timer02_set_pwm0(soft_pwm_bed << 1);
         }
       }
       else
       {
         soft_pwm_bed = 0;
-		    OCR0B = (int)(soft_pwm_bed << 1);
+		timer02_set_pwm0(soft_pwm_bed << 1);
         WRITE(HEATER_BED_PIN,LOW);
       }
     #else //#ifdef BED_LIMIT_SWITCHING
@@ -840,25 +846,25 @@ void manage_heater()
         if(current_temperature_bed > target_temperature_bed + BED_HYSTERESIS)
         {
           soft_pwm_bed = 0;
-		      OCR0B = (int)(soft_pwm_bed << 1);
+		  timer02_set_pwm0(soft_pwm_bed << 1);
         }
         else if(current_temperature_bed <= target_temperature_bed - BED_HYSTERESIS)
         {
           soft_pwm_bed = MAX_BED_POWER>>1;
-          OCR0B = (int)(soft_pwm_bed << 1);
+          timer02_set_pwm0(soft_pwm_bed << 1);
         }
       }
       else
       {
         soft_pwm_bed = 0;
-		    OCR0B = (int)(soft_pwm_bed << 1);
+		timer02_set_pwm0(soft_pwm_bed << 1);
         WRITE(HEATER_BED_PIN,LOW);
       }
     #endif
       if(target_temperature_bed==0)
 	  {
         soft_pwm_bed = 0;
-		    OCR0B = (int)(soft_pwm_bed << 1);
+		timer02_set_pwm0(soft_pwm_bed << 1);
 	  }
   #endif
   
@@ -874,7 +880,7 @@ static float analog2temp(int raw, uint8_t e) {
       SERIAL_ERROR_START;
       SERIAL_ERROR((int)e);
       SERIAL_ERRORLNPGM(" - Invalid extruder number !");
-      kill(PSTR(""), 6);
+      kill(NULL, 6);
       return 0.0;
   } 
   #ifdef HEATER_0_USES_MAX6675
@@ -1084,7 +1090,7 @@ void tp_init()
   adc_init();
 
   timer0_init();
-  timer2_init();
+  OCR2B = 128;
   TIMSK2 |= (1<<OCIE2B);  
   
   // Wait for temperature measurement to settle
@@ -1397,7 +1403,8 @@ void disable_heater()
   #if defined(TEMP_BED_PIN) && TEMP_BED_PIN > -1
     target_temperature_bed=0;
     soft_pwm_bed=0;
-  	OCR0B = (int)(soft_pwm_bed << 1);
+	timer02_set_pwm0(soft_pwm_bed << 1);
+	bedPWMDisabled = 0;
     #if defined(HEATER_BED_PIN) && HEATER_BED_PIN > -1
       //WRITE(HEATER_BED_PIN,LOW);
     #endif
@@ -1577,11 +1584,14 @@ void adc_ready(void) //callback from adc when sampling finished
 	current_voltage_raw_pwr = adc_values[ADC_PIN_IDX(VOLT_PWR_PIN)];
 #endif
 #ifdef AMBIENT_THERMISTOR
-	current_temperature_raw_ambient = adc_values[ADC_PIN_IDX(TEMP_AMBIENT_PIN)];
+	current_temperature_raw_ambient = adc_values[ADC_PIN_IDX(TEMP_AMBIENT_PIN)]; // 5->6
 #endif //AMBIENT_THERMISTOR
 #ifdef VOLT_BED_PIN
 	current_voltage_raw_bed = adc_values[ADC_PIN_IDX(VOLT_BED_PIN)]; // 6->9
 #endif
+#if IR_SENSOR_ANALOG
+     current_voltage_raw_IR = adc_values[ADC_PIN_IDX(VOLT_IR_PIN)];
+#endif //IR_SENSOR_ANALOG
 	temp_meas_ready = true;
 }
 
@@ -1994,6 +2004,8 @@ void check_max_temp()
 //! number of repeating the same state with consecutive step() calls
 //! used to slow down text switching
 struct alert_automaton_mintemp {
+	const char *m2;
+	alert_automaton_mintemp(const char *m2):m2(m2){}
 private:
 	enum { ALERT_AUTOMATON_SPEED_DIV = 5 };
 	enum class States : uint8_t { Init = 0, TempAboveMintemp, ShowPleaseRestart, ShowMintemp };
@@ -2013,7 +2025,6 @@ public:
 	//! @param current_temp current hotend/bed temperature (for computing simple hysteresis)
 	//! @param mintemp minimal temperature including hysteresis to check current_temp against
 	void step(float current_temp, float mintemp){
-		static const char m2[] PROGMEM = "MINTEMP fixed";
 		static const char m1[] PROGMEM = "Please restart";
 		switch(state){
 		case States::Init: // initial state - check hysteresis
@@ -2041,8 +2052,9 @@ public:
 		}
 	}
 };
-
-static alert_automaton_mintemp alert_automaton_hotend, alert_automaton_bed;
+static const char m2hotend[] PROGMEM = "MINTEMP HOTEND fixed";
+static const char m2bed[] PROGMEM = "MINTEMP BED fixed";
+static alert_automaton_mintemp alert_automaton_hotend(m2hotend), alert_automaton_bed(m2bed);
 
 void check_min_temp_heater0()
 {

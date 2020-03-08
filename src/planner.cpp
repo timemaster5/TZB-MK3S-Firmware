@@ -131,6 +131,10 @@ float extruder_advance_K = LIN_ADVANCE_K;
 float position_float[NUM_AXIS];
 #endif
 
+// Request the next block to start at zero E count
+static bool plan_reset_next_e_queue;
+static bool plan_reset_next_e_sched;
+
 // Returns the index of the next block in the ring buffer
 // NOTE: Removed modulo (%) operator, which uses an expensive divide and multiplication.
 static inline int8_t next_block_index(int8_t block_index) {
@@ -442,6 +446,8 @@ void plan_init() {
   previous_speed[2] = 0.0;
   previous_speed[3] = 0.0;
   previous_nominal_speed = 0.0;
+  plan_reset_next_e_queue = false;
+  plan_reset_next_e_sched = false;
 }
 
 
@@ -659,6 +665,9 @@ void planner_abort_hard()
     previous_speed[2] = 0.0;
     previous_speed[3] = 0.0;
 
+    plan_reset_next_e_queue = false;
+    plan_reset_next_e_sched = false;
+
     // Relay to planner wait routine, that the current line shall be canceled.
     waiting_inside_plan_buffer_line_print_aborted = true;
 }
@@ -671,15 +680,15 @@ float junction_deviation = 0.1;
 // Add a new linear movement to the buffer. steps_x, _y and _z is the absolute position in 
 // mm. Microseconds specify how many microseconds the move should take to perform. To aid acceleration
 // calculation the caller must also provide the physical length of the line in millimeters.
-void plan_buffer_line(float x, float y, float z, const float &e, float feed_rate, uint8_t extruder)
+void plan_buffer_line(float x, float y, float z, const float &e, float feed_rate, uint8_t extruder, const float* gcode_target)
 {
     // Calculate the buffer head after we push this byte
   int next_buffer_head = next_block_index(block_buffer_head);
 
   // If the buffer is full: good! That means we are well ahead of the robot. 
   // Rest here until there is room in the buffer.
+  waiting_inside_plan_buffer_line_print_aborted = false;
   if (block_buffer_tail == next_buffer_head) {
-      waiting_inside_plan_buffer_line_print_aborted = false;
       do {
           manage_heater(); 
           // Vojtech: Don't disable motors inside the planner!
@@ -698,6 +707,43 @@ void plan_buffer_line(float x, float y, float z, const float &e, float feed_rate
 #ifdef PLANNER_DIAGNOSTICS
   planner_update_queue_min_counter();
 #endif /* PLANNER_DIAGNOSTICS */
+
+  // Prepare to set up new block
+  block_t *block = &block_buffer[block_buffer_head];
+
+  // Mark block as not busy (Not executed by the stepper interrupt, could be still tinkered with.)
+  block->busy = false;
+
+  // Set sdlen for calculating sd position
+  block->sdlen = 0;
+
+  // Save original destination of the move
+  if (gcode_target)
+      memcpy(block->gcode_target, gcode_target, sizeof(block_t::gcode_target));
+  else
+  {
+      block->gcode_target[X_AXIS] = x;
+      block->gcode_target[Y_AXIS] = y;
+      block->gcode_target[Z_AXIS] = z;
+      block->gcode_target[E_AXIS] = e;
+  }
+
+  // Save the global feedrate at scheduling time
+  block->gcode_feedrate = feedrate;
+
+  // Reset the starting E position when requested
+  if (plan_reset_next_e_queue)
+  {
+      position[E_AXIS] = 0;
+#ifdef LIN_ADVANCE
+      position_float[E_AXIS] = 0;
+#endif
+
+      // the block might still be discarded later, but we need to ensure the lower-level
+      // count_position is also reset correctly for consistent results!
+      plan_reset_next_e_queue = false;
+      plan_reset_next_e_sched = true;
+  }
 
 #ifdef ENABLE_AUTO_BED_LEVELING
   apply_rotation_xyz(plan_bed_level_matrix, x, y, z);
@@ -790,15 +836,6 @@ void plan_buffer_line(float x, float y, float z, const float &e, float feed_rate
     #endif
   }
   #endif
-
-  // Prepare to set up new block
-  block_t *block = &block_buffer[block_buffer_head];
-
-  // Set sdlen for calculating sd position
-  block->sdlen = 0;
-
-  // Mark block as not busy (Not executed by the stepper interrupt, could be still tinkered with.)
-  block->busy = false;
 
   // Number of steps for each axis
 #ifndef COREXY
@@ -1101,17 +1138,24 @@ Having the real displacement of the head, we can calculate the total movement le
       // still need to replicate the *exact* same step grouping policy (see below)
       float advance_speed = (extruder_advance_K * e_D_ratio * block->acceleration * cs.axis_steps_per_unit[E_AXIS]);
       if (advance_speed > MAX_STEP_FREQUENCY) advance_speed = MAX_STEP_FREQUENCY;
-      block->advance_rate = (F_CPU / 8.0) / advance_speed;
-      if (block->advance_rate > 20000) {
-          block->advance_rate = (block->advance_rate >> 2)&0x3fff;
+      float advance_rate = (F_CPU / 8.0) / advance_speed;
+      if (advance_speed > 20000) {
+          block->advance_rate = advance_rate * 4;
           block->advance_step_loops = 4;
       }
-      else if (block->advance_rate > 10000) {
-          block->advance_rate = (block->advance_rate >> 1)&0x7fff;
+      else if (advance_speed > 10000) {
+          block->advance_rate = advance_rate * 2;
           block->advance_step_loops = 2;
       }
       else
+      {
+          // never overflow the internal accumulator with very low rates
+          if (advance_rate < UINT16_MAX)
+              block->advance_rate = advance_rate;
+          else
+              block->advance_rate = UINT16_MAX;
           block->advance_step_loops = 1;
+      }
 
       #ifdef LA_DEBUG
       if (block->advance_step_loops > 2)
@@ -1151,6 +1195,13 @@ Having the real displacement of the head, we can calculate the total movement le
 
   // Reset the block flag.
   block->flag = 0;
+
+  if (plan_reset_next_e_sched)
+  {
+      // finally propagate a pending reset
+      block->flag |= BLOCK_FLAG_E_RESET;
+      plan_reset_next_e_sched = false;
+  }
 
   // Initial limit on the segment entry velocity.
   float vmax_junction;
@@ -1302,14 +1353,7 @@ void plan_set_position(float x, float y, float z, const float &e)
     apply_rotation_xyz(plan_bed_level_matrix, x, y, z);
 #endif // ENABLE_AUTO_BED_LEVELING
 
-    // Apply the machine correction matrix.
-    if (world2machine_correction_mode != WORLD2MACHINE_CORRECTION_NONE)
-    {
-        float tmpx = x;
-        float tmpy = y;
-        x = world2machine_rotation_and_skew[0][0] * tmpx + world2machine_rotation_and_skew[0][1] * tmpy + world2machine_shift[0];
-        y = world2machine_rotation_and_skew[1][0] * tmpx + world2machine_rotation_and_skew[1][1] * tmpy + world2machine_shift[1];
-    }
+    world2machine(x, y);
 
   position[X_AXIS] = lround(x*cs.axis_steps_per_unit[X_AXIS]);
   position[Y_AXIS] = lround(y*cs.axis_steps_per_unit[Y_AXIS]);
@@ -1352,6 +1396,11 @@ void plan_set_e_position(const float &e)
   #endif
   position[E_AXIS] = lround(e*cs.axis_steps_per_unit[E_AXIS]);  
   st_set_e_position(position[E_AXIS]);
+}
+
+void plan_reset_next_e()
+{
+    plan_reset_next_e_queue = true;
 }
 
 #ifdef PREVENT_DANGEROUS_EXTRUDE

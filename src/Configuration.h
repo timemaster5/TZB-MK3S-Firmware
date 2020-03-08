@@ -19,7 +19,7 @@ extern PGM_P sPrinterName;
 #define FW_VERSION "TZB3.0.3"
 // BASED ON PRUSA Stock FW 3.8.1 & LA1.5 from Vertigo235
 // https://github.com/vertigo235/Build-Prusa-LA-15
-#define FW_COMMIT_NR   2479
+#define FW_COMMIT_NR   2480
 // FW_VERSION_UNKNOWN means this is an unofficial build.
 // The firmware should only be checked into github with this symbol.
 #define FW_DEV_VERSION FW_VERSION_RC
@@ -347,7 +347,7 @@ your extruder heater takes 2 minutes to hit the target on heating.
   #define Y_PROBE_OFFSET_FROM_EXTRUDER -29
   #define Z_PROBE_OFFSET_FROM_EXTRUDER -12.35
 
-  #define Z_RAISE_BEFORE_HOMING 4       // (in mm) Raise Z before homing (G28) for Probe Clearance.
+  #define Z_RAISE_BEFORE_HOMING 5       // (in mm) Raise Z before homing (G28) for Probe Clearance.
                                         // Be sure you have this distance over your Z_MAX_POS in case
 
   #define XY_TRAVEL_SPEED 8000         // X and Y axis travel speed between probes, in mm/min
@@ -426,7 +426,7 @@ your extruder heater takes 2 minutes to hit the target on heating.
 #define DEFAULT_XJERK                10       // (mm/sec)
 #define DEFAULT_YJERK                10       // (mm/sec)
 #define DEFAULT_ZJERK                 0.4     // (mm/sec)
-#define DEFAULT_EJERK                 2.5     // (mm/sec)
+#define DEFAULT_EJERK                 4.5     // (mm/sec)
 
 //===========================================================================
 //=============================Additional Features===========================
@@ -550,6 +550,12 @@ enum CalibrationStatus
     // Currently the G86 sets the calibration status to 
     CALIBRATION_STATUS_UNKNOWN = 0,
 };
+
+// Try to maintain a minimum distance from the bed even when Z is
+// unknown when doing the following operations
+#define MIN_Z_FOR_LOAD    50
+#define MIN_Z_FOR_UNLOAD  20
+#define MIN_Z_FOR_PREHEAT 10
 
 #include "Configuration_adv.h"
 #include "thermistortables.h"

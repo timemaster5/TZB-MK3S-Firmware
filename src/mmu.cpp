@@ -154,6 +154,7 @@ int16_t mmu_buildnr = -1;
 uint32_t mmu_last_request = 0;
 uint32_t mmu_last_response = 0;
 uint32_t mmu_last_finda_update = 0;
+uint32_t mmu_last_finda_response = 0;
 
 //initialize mmu2 unit - first part - should be done at begining of startup process
 void mmu_init(void)
@@ -210,7 +211,7 @@ void mmu_loop(void)
   bool confFINDA = confirmedFINDA;
   if (confPayload) { mmu_last_response = _millis(); confirmedPayload = false; }
   else { tData1 = ' '; tData2 = ' '; tData3 = ' '; tData4 = ' '; tData5 = ' '; }
-  if (confFINDA) { mmu_last_response = _millis(); mmu_finda = tFINDA; confirmedFINDA = false; }
+  if (confFINDA) { mmu_last_response = _millis(); mmu_last_finda_response = _millis(); mmu_finda = tFINDA; confirmedFINDA = false; }
   if (atomic_MMU_IRSENS) { MMU_IRSENS = true; atomic_MMU_IRSENS = false; }
   sei();
 
@@ -330,13 +331,12 @@ void mmu_loop(void)
       printf_P(PSTR("MMU2S => MK32S '@toolChange:%d'\n"), toolChanges); }
   } // End of mmu_state > S::Disabled
 
-  if (!mmu_finda && CHECK_FSENSOR && fsensor_enabled)
+  if (!mmu_finda && CHECK_FSENSOR && fsensor_enabled && mmu_fil_loaded)
   {
     #ifdef OCTO_NOTIFICATIONS_ON
     printf_P(PSTR("// action:m600\n"));
     #endif // OCTO_NOTIFICATIONS_ON
-    fsensor_stop_and_save_print();
-    enquecommand_front_P(PSTR("PRUSA fsensor_recover")); //then recover
+    fsensor_checkpoint_print();
     ad_markDepleted(mmu_extruder);
     if (lcd_autoDepleteEnabled() && !ad_allDepleted()) enquecommand_front_P(PSTR("M600 AUTO")); //save print and run M600 command
     else enquecommand_front_P(PSTR("M600")); //save print and run M600 command
@@ -1126,12 +1126,7 @@ static bool can_load()
         st_synchronize();
         if(isEXTLoaded) ++filament_detected_count;
     }
-    if (filament_detected_count > steps - 4) {
-      current_position[E_AXIS] += 3;
-      plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
-      st_synchronize();
-      return true;
-    }
+    if (filament_detected_count > steps - 4) return true;
     else return false;
 }
 

@@ -7,6 +7,7 @@ extern bool mmuFSensorLoading;
 extern bool mmu_fil_loaded;
 extern bool mmu_idl_sens;
 extern uint32_t mmu_last_request;
+extern uint32_t mmu_last_finda_response;
 extern uint8_t mmu_filament_types[];
 
 extern bool mmu_enabled;

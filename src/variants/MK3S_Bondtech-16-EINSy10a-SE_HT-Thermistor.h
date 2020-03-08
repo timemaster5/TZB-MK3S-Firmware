@@ -36,6 +36,13 @@
 //#define E3D_PT100_BED_WITH_AMP
 //#define E3D_PT100_BED_NO_AMP
 
+// WEH002004 OLED Display uncomment WEH002004_OLED if have this kind of display
+#define WEH002004_OLED
+
+// Extruder
+#define BONDTECH_MK3S
+//#define BONDTECH_MOSQUITO
+//#define BONDTECH_MOSQUITO_MAGNUM
 
 /*------------------------------------
  AXIS SETTINGS
@@ -153,8 +160,8 @@
 // this value is litlebit higher that real limit, because ambient termistor is on the board and is temperated from it,
 // temperature inside the case is around 31C for ambient temperature 25C, when the printer is powered on long time and idle
 // the real limit is 15C (same as MINTEMP limit), this is because 15C is end of scale for both used thermistors (bed, heater)
-#define MINTEMP_MINAMBIENT      25
-#define MINTEMP_MINAMBIENT_RAW  978
+#define MINTEMP_MINAMBIENT      10
+#define MINTEMP_MINAMBIENT_RAW  1002
 
 #define DEBUG_DCODE3
 
@@ -262,11 +269,13 @@
 #define TMC2130_SG_THRS_Y       3     // stallguard sensitivity for Y axis
 #define TMC2130_SG_THRS_Z       4     // stallguard sensitivity for Z axis
 #define TMC2130_SG_THRS_E       3     // stallguard sensitivity for E axis
+#define TMC2130_SG_THRS_HOME {3, 3, TMC2130_SG_THRS_Z, TMC2130_SG_THRS_E}
 
 //new settings is possible for vsense = 1, running current value > 31 set vsense to zero and shift both currents by 1 bit right (Z axis only)
 #define TMC2130_CURRENTS_H {16, 20, 35, 30}  // default holding currents for all axes
 #define TMC2130_CURRENTS_R {16, 20, 35, 30}  // default running currents for all axes
-#define TMC2130_UNLOAD_CURRENT_R 12			 // lowe current for M600 to protect filament sensor 
+#define TMC2130_CURRENTS_R_HOME {8, 10, 20, 18}  // homing running currents for all axes
+// #define TMC2130_UNLOAD_CURRENT_R 12			 // lower current for M600 to protect filament sensor - Unused
 
 #define TMC2130_STEALTH_Z
 
@@ -282,14 +291,14 @@
  *------------------------------------*/
 
 // Mintemps
-#define HEATER_0_MINTEMP 15
+#define HEATER_0_MINTEMP 10
 #define HEATER_1_MINTEMP 5
 #define HEATER_2_MINTEMP 5
 #define HEATER_MINTEMP_DELAY 15000                // [ms] ! if changed, check maximal allowed value @ ShortTimer
 #if HEATER_MINTEMP_DELAY>USHRT_MAX
 #error "Check maximal allowed value @ ShortTimer (see HEATER_MINTEMP_DELAY definition)"
 #endif
-#define BED_MINTEMP 15
+#define BED_MINTEMP 10
 #define BED_MINTEMP_DELAY 50000                   // [ms] ! if changed, check maximal allowed value @ ShortTimer
 #if BED_MINTEMP_DELAY>USHRT_MAX
 #error "Check maximal allowed value @ ShortTimer (see BED_MINTEMP_DELAY definition)"
@@ -384,8 +393,8 @@
 #endif
 
 // temperature runaway
-#define TEMP_RUNAWAY_BED_HYSTERESIS 10
-#define TEMP_RUNAWAY_BED_TIMEOUT 900
+#define TEMP_RUNAWAY_BED_HYSTERESIS 5
+#define TEMP_RUNAWAY_BED_TIMEOUT 360
 
 #define TEMP_RUNAWAY_EXTRUDER_HYSTERESIS 15
 #define TEMP_RUNAWAY_EXTRUDER_TIMEOUT 45
@@ -466,9 +475,9 @@
 #define  DEFAULT_bedKi 1.60
 #define  DEFAULT_bedKd 73.76
 #else
-#define  DEFAULT_bedKp 193.51
-#define  DEFAULT_bedKi 8.96
-#define  DEFAULT_bedKd 1044.75
+#define  DEFAULT_bedKp 126.13
+#define  DEFAULT_bedKi 4.30
+#define  DEFAULT_bedKd 924.76
 #endif
 
 //120v 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)
@@ -619,7 +628,11 @@
 // The following example, 12 * (4 * 16 / 400) = 12 * 0.16mm = 1.92mm.
 //#define UVLO_Z_AXIS_SHIFT 1.92
 #define UVLO_Z_AXIS_SHIFT 0.64
-// If power panic occured, and the current temperature is higher then target temperature before interrupt minus this offset, print will be recovered automatically. 
+// When powered off during PP recovery, the Z axis position can still be re-adjusted. In this case
+// we just need to shift to the nearest fullstep, but we need a move which is at least
+// "dropsegments" steps long. All the above rules still need to apply.
+#define UVLO_TINY_Z_AXIS_SHIFT 0.16
+// If power panic occured, and the current temperature is higher then target temperature before interrupt minus this offset, print will be recovered automatically.
 #define AUTOMATIC_UVLO_BED_TEMP_OFFSET 5 
 
 #define HEATBED_V2

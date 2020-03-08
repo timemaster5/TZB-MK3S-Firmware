@@ -265,8 +265,8 @@
 #endif
 
 // temperature runaway
-#define TEMP_RUNAWAY_BED_HYSTERESIS 10
-#define TEMP_RUNAWAY_BED_TIMEOUT 900
+#define TEMP_RUNAWAY_BED_HYSTERESIS 5
+#define TEMP_RUNAWAY_BED_TIMEOUT 360
 
 #define TEMP_RUNAWAY_EXTRUDER_HYSTERESIS 15
 #define TEMP_RUNAWAY_EXTRUDER_TIMEOUT 45
@@ -357,9 +357,9 @@
 #define  DEFAULT_bedKi 1.60
 #define  DEFAULT_bedKd 73.76
 #else
-#define  DEFAULT_bedKp 193.51
-#define  DEFAULT_bedKi 8.96
-#define  DEFAULT_bedKd 1044.75
+#define  DEFAULT_bedKp 126.13
+#define  DEFAULT_bedKi 4.30
+#define  DEFAULT_bedKd 924.76
 #endif
 
 //120v 250W silicone heater into 4mm borosilicate (MendelMax 1.5+)

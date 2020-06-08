@@ -89,9 +89,9 @@ uint8_t lcd_escape[8];
 #endif
 
 static void lcd_display(void);
-static void lcd_no_display(void);
 
 #if 0
+static void lcd_no_display(void);
 static void lcd_no_cursor(void);
 static void lcd_cursor(void);
 static void lcd_no_blink(void);
@@ -204,8 +204,6 @@ static void lcd_begin(uint8_t clear)
      lcd_send(LCD_FUNCTIONSET | LCD_4BITMODE, LOW | LCD_HALF_FLAG); // 0010xxxx //set 4BIT mode //last four bits are not important.
     lcd_send(LCD_FUNCTIONSET | LCD_4BITMODE | LCD_2LINE, LOW | LCD_HALF_FLAG); // 0010xxxx //functionset 4 bit
     lcd_send((/*LCD_FUNCTIONSET | LCD_4BITMODE | */LCD_2LINE) << 4, LOW | LCD_HALF_FLAG); // xxxx1000 //two line lcd second nibble
-
-     lcd_no_display();
     lcd_command(LCD_FUNCTIONSET | lcd_displayfunction); // Set # lines, font size, etc.
     lcd_clear();
     lcd_command(LCD_ENTRYMODESET | lcd_displaymode); // Set Entry Mode
@@ -281,14 +279,16 @@ void lcd_home(void)
 void lcd_display(void)
 {
     lcd_displaycontrol |= LCD_DISPLAYON;
-    lcd_command(LCD_DISPLAYCONTROL | lcd_displaycontrol, 1600);
+    lcd_command(LCD_DISPLAYCONTROL | lcd_displaycontrol);
 }
 
+#if 0
 void lcd_no_display(void)
 {
 	lcd_displaycontrol &= ~LCD_DISPLAYON;
-	lcd_command(LCD_DISPLAYCONTROL | lcd_displaycontrol, 1600);
+	lcd_command(LCD_DISPLAYCONTROL | lcd_displaycontrol);
 }
+#endif
 
 #ifdef VT100 //required functions for VT100
 // Turns the underline cursor on/off

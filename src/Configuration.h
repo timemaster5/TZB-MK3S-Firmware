@@ -16,10 +16,10 @@ extern uint16_t nPrinterType;
 extern PGM_P sPrinterName;
 
 // Firmware version
-#define FW_VERSION "TZB3.0.4"
-// BASED ON PRUSA Stock FW 3.9.0
+#define FW_VERSION "TZB3.1.0"
+// BASED ON PRUSA Stock FW 3.9.2
 // https://github.com/vertigo235/Build-Prusa-LA-15
-#define FW_COMMIT_NR   2481
+#define FW_COMMIT_NR   2482
 // FW_VERSION_UNKNOWN means this is an unofficial build.
 // The firmware should only be checked into github with this symbol.
 #define FW_DEV_VERSION FW_VERSION_RC

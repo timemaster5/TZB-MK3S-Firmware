@@ -1,5 +1,8 @@
 //mmu.h
 
+#ifndef MMU_H
+#define MMU_H
+
 #include <inttypes.h>
 
 extern bool mmu_enabled;
@@ -23,7 +26,7 @@ extern uint16_t mmu_power_failures;
 
 #define MMU_LOAD_FEEDRATE 19.02f //mm/s
 #define MMU_LOAD_TIME_MS 2000 //should be fine tuned to load time for shortest allowed PTFE tubing and maximum loading speed
-#define isEXTLoaded (PIN_GET(IR_SENSOR_PIN) == 0)
+#define isEXTLoaded (READ(IR_SENSOR_PIN) == 0)
 
 enum class MmuCmd : uint_least8_t
 {
@@ -96,3 +99,5 @@ extern bool mmu_check_version();
 extern void mmu_show_warning();
 extern void lcd_mmu_load_to_nozzle(uint8_t filament_nr);
 extern void mmu_eject_filament(uint8_t filament, bool recover);
+
+#endif //MMU_H

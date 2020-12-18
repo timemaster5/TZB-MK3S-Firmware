@@ -1,4 +1,5 @@
 #include "Marlin.h"
+#include "cmdqueue.h"
 #include "cardreader.h"
 #include "ultralcd.h"
 #include "stepper.h"
@@ -243,6 +244,8 @@ void CardReader::release()
 {
   sdprinting = false;
   cardOK = false;
+  SERIAL_ECHO_START;
+  SERIAL_ECHOLNRPGM(_n("SD card released"));////MSG_SD_CARD_RELEASED
 }
 
 void CardReader::startFileprint()
@@ -331,7 +334,7 @@ void CardReader::diveSubfolder (const char *fileName, SdFile& dir)
                 {
                     SERIAL_PROTOCOLRPGM(MSG_SD_OPEN_FILE_FAIL);
                     SERIAL_PROTOCOL(subdirname);
-                    SERIAL_PROTOCOLLNPGM(".");
+                    SERIAL_PROTOCOLLN('.');
                     return;
                 }
                 else
@@ -430,7 +433,7 @@ void CardReader::openFile(const char* name,bool read, bool replace_current/*=tru
     {
       SERIAL_PROTOCOLRPGM(MSG_SD_OPEN_FILE_FAIL);
       SERIAL_PROTOCOL(fname);
-      SERIAL_PROTOCOLLNPGM(".");
+      SERIAL_PROTOCOLLN('.');
     }
   }
   else 
@@ -439,7 +442,7 @@ void CardReader::openFile(const char* name,bool read, bool replace_current/*=tru
     {
       SERIAL_PROTOCOLRPGM(MSG_SD_OPEN_FILE_FAIL);
       SERIAL_PROTOCOL(fname);
-      SERIAL_PROTOCOLLNPGM(".");
+      SERIAL_PROTOCOLLN('.');
     }
     else
     {
@@ -496,17 +499,15 @@ void CardReader::getStatus()
           SERIAL_PROTOCOLLNPGM("Print saved");
       }
       else {
-          SERIAL_PROTOCOL(longFilename);
-          SERIAL_PROTOCOLPGM("\n");
+          SERIAL_PROTOCOLLN(LONGEST_FILENAME);
           SERIAL_PROTOCOLRPGM(_N("SD printing byte "));////MSG_SD_PRINTING_BYTE
           SERIAL_PROTOCOL(sdpos);
-          SERIAL_PROTOCOLPGM("/");
+          SERIAL_PROTOCOL('/');
           SERIAL_PROTOCOLLN(filesize);
-          uint16_t time = _millis()/60000 - starttime/60000;
+          uint16_t time = ( _millis() - starttime ) / 60000U;
           SERIAL_PROTOCOL(itostr2(time/60));
           SERIAL_PROTOCOL(':');
-          SERIAL_PROTOCOL(itostr2(time%60));
-          SERIAL_PROTOCOLPGM("\n");
+          SERIAL_PROTOCOLLN(itostr2(time%60));
       }
   }
   else {

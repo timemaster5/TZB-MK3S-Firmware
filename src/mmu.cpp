@@ -1,5 +1,6 @@
 //mmu.cpp
 
+#include "mmu.h"
 #include "planner.h"
 #include "language.h"
 #include "lcd.h"
@@ -8,12 +9,17 @@
 #include "Configuration_prusa.h"
 #include "fsensor.h"
 #include "cardreader.h"
+#include "cmdqueue.h"
 #include "ultralcd.h"
 #include "sound.h"
 #include "printers.h"
 #include <avr/pgmspace.h>
-#include "io_atmega2560.h"
+//#include "io_atmega2560.h"
+//#include "Marlin.h"
 #include "AutoDeplete.h"
+#include "fastio.h"
+#include "pins.h"
+//-//
 #include "util.h"
 
 #ifdef TMC2130
@@ -166,8 +172,8 @@ void mmu_init(void)
   uart2_init();                 //init uart2
   mmu_reset();                  //reset mmu (HW or SW), do not wait for response
   mmu_state = S::Init;
-  PIN_INP(IR_SENSOR_PIN); //input mode
-  PIN_SET(IR_SENSOR_PIN); //pullup
+	SET_INPUT(IR_SENSOR_PIN); //input mode
+	WRITE(IR_SENSOR_PIN, 1); //pullup
 }
 
 //! @brief Is nozzle hot enough to move extruder wheels and do we have idler sensor?
@@ -548,7 +554,7 @@ void mmu_unload_synced(uint16_t _filament_type_speed)
   shutdownE0(false);
   st_synchronize();
   current_position[E_AXIS] -= 20;
-  plan_buffer_line_curposXYZE(_filament_type_speed, active_extruder);
+  plan_buffer_line_curposXYZE(_filament_type_speed);
   st_synchronize();
   shutdownE0();
 }
@@ -631,13 +637,13 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
         current_position[Z_AXIS] += Z_PAUSE_LIFT;
         if (current_position[Z_AXIS] > Z_MAX_POS)
           current_position[Z_AXIS] = Z_MAX_POS;
-        plan_buffer_line_curposXYZE(15, active_extruder);
+        plan_buffer_line_curposXYZE(15);
         st_synchronize();
 
         //Move XY to side
         current_position[X_AXIS] = X_PAUSE_POS;
         current_position[Y_AXIS] = Y_PAUSE_POS;
-        plan_buffer_line_curposXYZE(50, active_extruder);
+        plan_buffer_line_curposXYZE(50);
         st_synchronize();
       }
       if (turn_off_nozzle) {
@@ -701,10 +707,10 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
       lcd_display_message_fullscreen_P(_i("MMU OK. Resuming position..."));
       current_position[X_AXIS] = x_position_bckp;
       current_position[Y_AXIS] = y_position_bckp;
-    plan_buffer_line_curposXYZE(50, active_extruder);
+    plan_buffer_line_curposXYZE(50);
       st_synchronize();
       current_position[Z_AXIS] = z_position_bckp;
-    plan_buffer_line_curposXYZE(15, active_extruder);
+    plan_buffer_line_curposXYZE(15);
       st_synchronize();
     }
     else {
@@ -750,14 +756,14 @@ void mmu_load_to_nozzle()
 	if (!saved_e_relative_mode) axis_relative_modes |= E_AXIS_MASK;
   if (ir_sensor_detected)
   {
-    current_position[E_AXIS] += 3.0f;
+    current_position[E_AXIS] += 3.f;
   }
   else
   {
     current_position[E_AXIS] += 7.2f;
   }
   float feedrate = 562;
-  plan_buffer_line_curposXYZE(feedrate / 60, active_extruder);
+  plan_buffer_line_curposXYZE(feedrate / 60);
   st_synchronize();
   #ifdef BONDTECH_MK25S
     current_position[E_AXIS] += 25.4f; //Bondtech MK2.5s 11 mm longer t melt zone
@@ -771,11 +777,11 @@ void mmu_load_to_nozzle()
 	 current_position[E_AXIS] += 14.4f;
   #endif
   feedrate = 871;
-  plan_buffer_line_curposXYZE(feedrate / 60, active_extruder);
+  plan_buffer_line_curposXYZE(feedrate / 60);
   st_synchronize();
   current_position[E_AXIS] += 36.0f;
   feedrate = 1393;
-  plan_buffer_line_curposXYZE(feedrate / 60, active_extruder);
+  plan_buffer_line_curposXYZE(feedrate / 60);
   st_synchronize();
 //Distance through heat block is longer with Mosquito / Mosquito Magnum
   #ifdef BONDTECH_MOSQUITO
@@ -786,7 +792,7 @@ void mmu_load_to_nozzle()
 	  current_position[E_AXIS] += 14.4f;
   #endif
   feedrate = 871;
-  plan_buffer_line_curposXYZE(feedrate / 60, active_extruder);
+  plan_buffer_line_curposXYZE(feedrate / 60);
   st_synchronize();
 	if (!saved_e_relative_mode) axis_relative_modes &= ~E_AXIS_MASK;
 }
@@ -930,7 +936,7 @@ static void filament_ramming()
   for (uint8_t i = 0; i < (sizeof(ramming_sequence) / sizeof(E_step)); ++i)
   {
     current_position[E_AXIS] += pgm_read_float(&(ramming_sequence[i].extrude));
-    plan_buffer_line_curposXYZE(pgm_read_float(&(ramming_sequence[i].feed_rate)), active_extruder);
+    plan_buffer_line_curposXYZE(pgm_read_float(&(ramming_sequence[i].feed_rate)));
     st_synchronize();
   }
 }
@@ -941,7 +947,7 @@ void mmu_filament_ramming()
   for (uint8_t i = 0; i < (sizeof(ramming_sequence) / sizeof(E_step)); ++i)
   {
     current_position[E_AXIS] += pgm_read_float(&(ramming_sequence[i].extrude));
-    plan_buffer_line_curposXYZE(pgm_read_float(&(ramming_sequence[i].feed_rate)), active_extruder);
+    plan_buffer_line_curposXYZE(pgm_read_float(&(ramming_sequence[i].feed_rate)));
     st_synchronize();
   }
 }
@@ -954,7 +960,7 @@ void mmu_load_step(bool synchronize)
 {
   shutdownE0(false);
   current_position[E_AXIS] = current_position[E_AXIS] + MMU_LOAD_FEEDRATE * 0.1;
-  plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
+  plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE);
   if (synchronize)
     st_synchronize();
 }
@@ -1097,7 +1103,7 @@ static bool can_load()
     #else
       current_position[E_AXIS] += 60;
     #endif
-    plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
+    plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE);
 
     #ifdef BONDTECH_MK25S//pull back to 8 mm below drive gear to check if filament path was blocked
       current_position[E_AXIS] -= 63; // Pull back 63mm, 8 mm below drive gear
@@ -1110,7 +1116,7 @@ static bool can_load()
     #else
       current_position[E_AXIS] -= 52;
     #endif
-    plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
+    plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE);
     st_synchronize();
 
     uint_least8_t filament_detected_count = 0;
@@ -1120,7 +1126,7 @@ static bool can_load()
     for(uint_least8_t i = 0; i < steps; ++i)
     {
         current_position[E_AXIS] -= e_increment;
-        plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE, active_extruder);
+        plan_buffer_line_curposXYZE(MMU_LOAD_FEEDRATE);
         st_synchronize();
         if(isEXTLoaded) ++filament_detected_count;
     }
@@ -1194,13 +1200,13 @@ void mmu_continue_loading(void)
         //lift z
         current_position[Z_AXIS] += Z_PAUSE_LIFT;
         if (current_position[Z_AXIS] > Z_MAX_POS) current_position[Z_AXIS] = Z_MAX_POS;
-        plan_buffer_line_curposXYZE(15, active_extruder);
+        plan_buffer_line_curposXYZE(15);
         st_synchronize();
 
         //Move XY to side
         current_position[X_AXIS] = X_PAUSE_POS;
         current_position[Y_AXIS] = Y_PAUSE_POS;
-        plan_buffer_line_curposXYZE(50, active_extruder);
+        plan_buffer_line_curposXYZE(50);
         st_synchronize();
 
         mmu_command(MmuCmd::U0);

@@ -64,6 +64,7 @@ extern float current_temperature_bed;
 #ifdef PINDA_THERMISTOR
 extern uint16_t current_temperature_raw_pinda;
 extern float current_temperature_pinda;
+bool has_temperature_compensation();
 #endif
 
 #ifdef AMBIENT_THERMISTOR
@@ -160,7 +161,6 @@ FORCE_INLINE float degTargetBed() {
 // Doesn't save FLASH when FORCE_INLINE removed.
 FORCE_INLINE void setTargetHotend(const float &celsius, uint8_t extruder) {  
   target_temperature[extruder] = celsius;
-  if (celsius > 0) previous_target_temperature[extruder] = celsius;
   resetPID(extruder);
 };
 
@@ -169,7 +169,6 @@ static inline void setTargetHotendSafe(const float &celsius, uint8_t extruder)
 {
     if (extruder<EXTRUDERS) {
       target_temperature[extruder] = celsius;
-      if (celsius > 0) previous_target_temperature[extruder] = celsius;
       resetPID(extruder);
     }
 }
@@ -248,7 +247,7 @@ FORCE_INLINE void autotempShutdown(){
 
 void PID_autotune(float temp, int extruder, int ncycles);
 
-void setExtruderAutoFanState(int pin, bool state);
+void setExtruderAutoFanState(uint8_t state);
 void checkExtruderAutoFans();
 
 
@@ -273,10 +272,14 @@ void check_fans();
 void check_min_temp();
 void check_max_temp();
 
-
-#endif
+#ifdef EXTRUDER_ALTFAN_DETECT
+  extern bool extruder_altfan_detect();
+  extern void altfanOverride_toggle();
+  extern bool altfanOverride_get();
+#endif //EXTRUDER_ALTFAN_DETECT
 
 extern unsigned long extruder_autofan_last_check;
 extern uint8_t fanSpeedBckp;
 extern bool fan_measuring;
 
+#endif

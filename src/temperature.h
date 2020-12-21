@@ -161,6 +161,7 @@ FORCE_INLINE float degTargetBed() {
 // Doesn't save FLASH when FORCE_INLINE removed.
 FORCE_INLINE void setTargetHotend(const float &celsius, uint8_t extruder) {  
   target_temperature[extruder] = celsius;
+  if (celsius > 0) previous_target_temperature[extruder] = celsius;
   resetPID(extruder);
 };
 
@@ -169,6 +170,7 @@ static inline void setTargetHotendSafe(const float &celsius, uint8_t extruder)
 {
     if (extruder<EXTRUDERS) {
       target_temperature[extruder] = celsius;
+      if (celsius > 0) previous_target_temperature[extruder] = celsius;
       resetPID(extruder);
     }
 }

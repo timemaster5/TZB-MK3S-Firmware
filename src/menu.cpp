@@ -8,7 +8,6 @@
 #include "lcd.h"
 #include "Configuration.h"
 #include "Marlin.h"
-#include "cmdqueue.h"
 #include "ultralcd.h"
 #include "language.h"
 #include "static_assert.h"
@@ -49,7 +48,6 @@ void menu_goto(menu_func_t menu, const uint32_t encoder, const bool feedback, bo
 	{
 		menu_menu = menu;
 		lcd_encoder = encoder;
-		menu_top = 0; //reset menu view. Needed if menu_back() is called from deep inside a menu, such as Support
 		asm("sei");
 		if (reset_menu_state)
 		{

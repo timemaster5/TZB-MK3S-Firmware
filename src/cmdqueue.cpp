@@ -18,10 +18,6 @@ int buflen = 0;
 // Therefore don't remove the command from the queue in the loop() function.
 bool cmdbuffer_front_already_processed = false;
 
-// Used for temporarely preventing accidental adding of Serial commands to the queue.
-// For now only check_file and the fancheck pause use this.
-bool cmdqueue_serial_disabled = false;
-
 int serial_count = 0;  //index of character read from serial line
 boolean comment_mode = false;
 char *strchr_pointer; // just a pointer to find chars in the command string like X, Y, Z, E, etc
@@ -95,19 +91,14 @@ bool cmdqueue_pop_front()
 
 void cmdqueue_reset()
 {
-	while (buflen)
-	{
-		// printf_P(PSTR("dumping: \"%s\" of type %hu\n"), cmdbuffer+bufindr+CMDHDRSIZE, CMDBUFFER_CURRENT_TYPE);
-		ClearToSend();
-		cmdqueue_pop_front();
-	}
-	bufindr = 0;
-	bufindw = 0;
+    bufindr = 0;
+    bufindw = 0;
+    buflen = 0;
 
 	//commands are removed from command queue after process_command() function is finished
 	//reseting command queue and enqueing new commands during some (usually long running) command processing would cause that new commands are immediately removed from queue (or damaged)
 	//this will ensure that all new commands which are enqueued after cmdqueue reset, will be always executed
-	cmdbuffer_front_already_processed = true; 
+    cmdbuffer_front_already_processed = true; 
 }
 
 // How long a string could be pushed to the front of the command queue?
@@ -399,7 +390,7 @@ void get_command()
 	}
 
   // start of serial line processing loop
-  while (((MYSERIAL.available() > 0 && !saved_printing) || (MYSERIAL.available() > 0 && isPrintPaused)) && !cmdqueue_serial_disabled) {  //is print is saved (crash detection or filament detection), dont process data from serial line
+  while ((MYSERIAL.available() > 0 && !saved_printing) || (MYSERIAL.available() > 0 && isPrintPaused)) {  //is print is saved (crash detection or filament detection), dont process data from serial line
 	
     char serial_char = MYSERIAL.read();
 /*    if (selectedSerialPort == 1)
@@ -591,6 +582,8 @@ void get_command()
        ((serial_char == '#' || serial_char == ':') && comment_mode == false) ||
        serial_count >= (MAX_CMD_SIZE - 1) || n==-1)
     {
+      if(card.eof()) break;
+
       if(serial_char=='#')
         stop_buffering=true;
 
@@ -638,9 +631,6 @@ void get_command()
 
       comment_mode = false; //for new command
       serial_count = 0; //clear buffer
-    
-      if(card.eof()) break;
-    
       // The following line will reserve buffer space if available.
       if (! cmdqueue_could_enqueue_back(MAX_CMD_SIZE-1, true))
           return;

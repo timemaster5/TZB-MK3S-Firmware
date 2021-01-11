@@ -44,6 +44,7 @@
 #include "mmu.h"
 
 #include "static_assert.h"
+#include "io_atmega2560.h"
 #include "first_lay_cal.h"
 
 #include "fsensor.h"
@@ -1007,36 +1008,6 @@ void lcd_status_screen()                          // NOT static due to using ins
 		}
 	}
 
-#ifdef ULTIPANEL_FEEDMULTIPLY
-	// Dead zone at 100% feedrate
-	if ((feedmultiply < 100 && (feedmultiply + int(lcd_encoder)) > 100) ||
-		(feedmultiply > 100 && (feedmultiply + int(lcd_encoder)) < 100))
-	{
-		lcd_encoder = 0;
-		feedmultiply = 100;
-	}
-	if (feedmultiply == 100 && int(lcd_encoder) > ENCODER_FEEDRATE_DEADZONE)
-	{
-		feedmultiply += int(lcd_encoder) - ENCODER_FEEDRATE_DEADZONE;
-		lcd_encoder = 0;
-	}
-	else if (feedmultiply == 100 && int(lcd_encoder) < -ENCODER_FEEDRATE_DEADZONE)
-	{
-		feedmultiply += int(lcd_encoder) + ENCODER_FEEDRATE_DEADZONE;
-		lcd_encoder = 0;
-	}
-	else if (feedmultiply != 100)
-	{
-		feedmultiply += int(lcd_encoder);
-		lcd_encoder = 0;
-	}
-#endif //ULTIPANEL_FEEDMULTIPLY
-
-	if (feedmultiply < 10)
-		feedmultiply = 10;
-	else if (feedmultiply > 999)
-		feedmultiply = 999;
-
 	if (lcd_status_update_delay)
 		lcd_status_update_delay--;
 	else
@@ -1114,6 +1085,36 @@ void lcd_status_screen()                          // NOT static due to using ins
 		menu_submenu(lcd_main_menu);
 		lcd_refresh(); // to maybe revive the LCD if static electricity killed it.
 	}
+
+#ifdef ULTIPANEL_FEEDMULTIPLY
+	// Dead zone at 100% feedrate
+	if ((feedmultiply < 100 && (feedmultiply + int(lcd_encoder)) > 100) ||
+		(feedmultiply > 100 && (feedmultiply + int(lcd_encoder)) < 100))
+	{
+		lcd_encoder = 0;
+		feedmultiply = 100;
+	}
+	if (feedmultiply == 100 && int(lcd_encoder) > ENCODER_FEEDRATE_DEADZONE)
+	{
+		feedmultiply += int(lcd_encoder) - ENCODER_FEEDRATE_DEADZONE;
+		lcd_encoder = 0;
+	}
+	else if (feedmultiply == 100 && int(lcd_encoder) < -ENCODER_FEEDRATE_DEADZONE)
+	{
+		feedmultiply += int(lcd_encoder) + ENCODER_FEEDRATE_DEADZONE;
+		lcd_encoder = 0;
+	}
+	else if (feedmultiply != 100)
+	{
+		feedmultiply += int(lcd_encoder);
+		lcd_encoder = 0;
+	}
+#endif //ULTIPANEL_FEEDMULTIPLY
+
+	if (feedmultiply < 10)
+		feedmultiply = 10;
+	else if (feedmultiply > 999)
+		feedmultiply = 999;
 }
 
 void lcd_commands()
@@ -1590,7 +1591,6 @@ void lcd_return_to_status()
 //! @brief Pause print, disable nozzle heater, move to park position
 void lcd_pause_print()
 {
-    SERIAL_PROTOCOLLNRPGM(MSG_OCTOPRINT_PAUSED); //pause for octoprint
     stop_and_save_print_to_ram(0.0, -default_retraction);
     lcd_return_to_status();
     isPrintPaused = true;
@@ -3939,14 +3939,12 @@ void lcd_temp_cal_show_result(bool result) {
 		eeprom_update_byte((uint8_t*)EEPROM_CALIBRATION_STATUS_PINDA, 1);
 		SERIAL_ECHOLNPGM("Temperature calibration done. Continue with pressing the knob.");
 		lcd_show_fullscreen_message_and_wait_P(_T(MSG_TEMP_CALIBRATION_DONE));
-		temp_cal_active = true;
 		eeprom_update_byte((unsigned char *)EEPROM_TEMP_CAL_ACTIVE, 1);
 	}
 	else {
 		eeprom_update_byte((uint8_t*)EEPROM_CALIBRATION_STATUS_PINDA, 0);
 		SERIAL_ECHOLNPGM("Temperature calibration failed. Continue with pressing the knob.");
 		lcd_show_fullscreen_message_and_wait_P(_i("Temperature calibration failed"));////MSG_TEMP_CAL_FAILED c=20 r=8
-		temp_cal_active = false;
 		eeprom_update_byte((unsigned char *)EEPROM_TEMP_CAL_ACTIVE, 0);
 	}
 	lcd_update_enable(true);
@@ -4018,7 +4016,7 @@ static void lcd_show_sensors_state()
 		finda_state = mmu_finda;
 	}
 	if (ir_sensor_detected) {
-		idler_state = !READ(IR_SENSOR_PIN);
+		idler_state = !PIN_GET(IR_SENSOR_PIN);
 	}
 	lcd_puts_at_P(0, 0, _i("Sensor state"));
 	lcd_puts_at_P(1, 1, _i("PINDA:"));
@@ -4654,6 +4652,7 @@ void lcd_pinda_calibration_menu()
 }
 
 void lcd_temp_calibration_set() {
+	bool temp_cal_active = eeprom_read_byte((unsigned char *)EEPROM_TEMP_CAL_ACTIVE);
 	temp_cal_active = !temp_cal_active;
 	eeprom_update_byte((unsigned char *)EEPROM_TEMP_CAL_ACTIVE, temp_cal_active);
 }
@@ -5771,6 +5770,15 @@ void lcd_hw_setup_menu(void)                      // can not be "static"
         MENU_ITEM_SUBMENU_P(PSTR("Experimental"), lcd_experimental_menu);////MSG_MENU_EXPERIMENTAL c=18
     }
 
+#ifdef PINDA_TEMP_COMP
+	//! The SuperPINDA is detected when the PINDA temp is below its defined limit.
+	//! This works well on the EINSY board but not on the miniRAMBo board as
+	//! as a disconnected SuperPINDA will show higher temps compared to an EINSY board.
+	//! 
+	//! This menu allows the user to en-/disable the SuperPINDA manualy
+	MENU_ITEM_TOGGLE_P(_N("SuperPINDA"), eeprom_read_byte((uint8_t *)EEPROM_PINDA_TEMP_COMPENSATION) ? _T(MSG_YES) : _T(MSG_NO), lcd_pinda_temp_compensation_toggle);
+#endif //PINDA_TEMP_COMP
+
     MENU_END();
 }
 
@@ -6759,7 +6767,6 @@ void lcd_resume_print()
     lcd_return_to_status();
     lcd_reset_alert_level(); //for fan speed error
     if (fan_error_selftest()) return; //abort if error persists
-    cmdqueue_serial_disabled = false;
 
     lcd_setstatuspgm(_T(MSG_FINISHING_MOVEMENTS));
     st_synchronize();
@@ -7372,7 +7379,6 @@ void lcd_print_stop()
     if (!card.sdprinting) {
         SERIAL_ECHOLNRPGM(MSG_OCTOPRINT_CANCEL);   // for Octoprint
     }
-    cmdqueue_serial_disabled = false; //for when canceling a print with a fancheck
 
     CRITICAL_SECTION_START;
 
@@ -8495,7 +8501,7 @@ static bool selftest_irsensor()
         mmu_load_step(false);
         while (blocks_queued())
         {
-            if (READ(IR_SENSOR_PIN) == 0)
+            if (PIN_GET(IR_SENSOR_PIN) == 0)
             {
                 lcd_selftest_error(TestError::TriggeringFsensor, "", "");
                 return false;
@@ -8802,42 +8808,26 @@ static void lcd_selftest_screen_step(int _row, int _col, int _state, const char 
 
 static bool check_file(const char* filename) {
 	if (farm_mode) return true;
-	card.openFile((char*)filename, true);
 	bool result = false;
-	const uint32_t filesize = card.getFileSize();
-	uint32_t startPos = 0;
-	const uint16_t bytesToCheck = min(END_FILE_SECTION, filesize);
-	uint8_t blocksPrinted = 0;
+	uint32_t filesize;
+	card.openFile((char*)filename, true);
+	filesize = card.getFileSize();
 	if (filesize > END_FILE_SECTION) {
-		startPos = filesize - END_FILE_SECTION;
-		card.setIndex(startPos);
+		card.setIndex(filesize - END_FILE_SECTION);
+		
 	}
-	cmdqueue_reset();
-	cmdqueue_serial_disabled = true;
-
-	lcd_clear();
-	lcd_puts_at_P(0, 1, _i("Checking file"));////c=20 r=1
-	lcd_set_cursor(0, 2);
-	while (!card.eof() && !result) {
-		for (; blocksPrinted < (((card.get_sdpos() - startPos) * LCD_WIDTH) / bytesToCheck); blocksPrinted++)
-			lcd_print('\xFF'); //simple progress bar
-
+	
+		while (!card.eof() && !result) {
 		card.sdprinting = true;
 		get_command();
 		result = check_commands();
+		
 	}
-
-	for (; blocksPrinted < LCD_WIDTH; blocksPrinted++)
-		lcd_print('\xFF'); //simple progress bar
-	_delay(100); //for the user to see the end of the progress bar.
-
-	
-	cmdqueue_serial_disabled = false;
 	card.printingHasFinished();
-
 	strncpy_P(lcd_status_message, _T(WELCOME_MSG), LCD_WIDTH);
 	lcd_finishstatus();
 	return result;
+	
 }
 
 static void menu_action_sdfile(const char* filename)
@@ -9005,7 +8995,6 @@ void lcd_ignore_click(bool b)
 }
 
 void lcd_finishstatus() {
-  SERIAL_PROTOCOLLNRPGM(MSG_LCD_STATUS_CHANGED);
   int len = strlen(lcd_status_message);
   if (len > 0) {
     while (len < LCD_WIDTH) {
@@ -9272,3 +9261,17 @@ void lcd_experimental_menu()
 
     MENU_END();
 }
+
+#ifdef PINDA_TEMP_COMP
+void lcd_pinda_temp_compensation_toggle()
+{
+	uint8_t pinda_temp_compensation = eeprom_read_byte((uint8_t*)EEPROM_PINDA_TEMP_COMPENSATION);
+	if (pinda_temp_compensation == EEPROM_EMPTY_VALUE) // On MK2.5/S the EEPROM_EMPTY_VALUE will be set to 0 during eeprom_init.
+		pinda_temp_compensation = 1;                   // But for MK3/S it should be 1 so SuperPINDA is "active"
+	else
+		pinda_temp_compensation = !pinda_temp_compensation;
+	eeprom_update_byte((uint8_t*)EEPROM_PINDA_TEMP_COMPENSATION, pinda_temp_compensation);
+	SERIAL_ECHOLNPGM("SuperPINDA:");
+	SERIAL_ECHOLN(pinda_temp_compensation);
+}
+#endif //PINDA_TEMP_COMP

@@ -9,6 +9,9 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include "io_atmega2560.h"
+
+#define BEEPER              84
 
 void timer0_init(void)
 {

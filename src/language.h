@@ -5,7 +5,6 @@
 
 
 #include "config.h"
-#include "macros.h"
 #include <inttypes.h>
 #ifdef DEBUG_SEC_LANG
     #include <stdio.h>
@@ -22,6 +21,9 @@
 #endif
 
 #define MSG_FW_VERSION                   "Firmware"
+
+#define STRINGIFY_(n) #n
+#define STRINGIFY(n) STRINGIFY_(n)
 
 #if (LANG_MODE == 0) //primary language only
 #define PROGMEM_I2 __attribute__((section(".progmem0")))

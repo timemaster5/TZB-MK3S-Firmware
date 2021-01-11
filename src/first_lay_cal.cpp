@@ -7,7 +7,6 @@
 #include "Configuration_prusa.h"
 #include "language.h"
 #include "Marlin.h"
-#include "cmdqueue.h"
 #include "mmu.h"
 #include <avr/pgmspace.h>
 

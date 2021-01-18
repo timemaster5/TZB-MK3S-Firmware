@@ -1213,6 +1213,7 @@ void mmu_continue_loading(void)
         manage_response(false, true);
 
         setAllTargetHotends(0);
+        shutdownE0();  // Drop E0 Currents to 0.
         lcd_update_enable(false);
         lcd_clear(); //********************
         lcd_set_cursor(0, 0);
@@ -1227,6 +1228,7 @@ void mmu_continue_loading(void)
         lcd_setstatuspgm(_T(WELCOME_MSG));
         lcd_return_to_status();
         lcd_update_enable(true);
+        shutdownE0(false);  // Reset E0 Currents.
         restore_print_from_ram_and_continue(0);
         state = Ls::Retry;
         break;

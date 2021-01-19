@@ -1180,7 +1180,7 @@ void mmu_continue_loading(void)
         if (1 == eeprom_read_byte((uint8_t*)EEPROM_MMU_CUTTER_ENABLED))
         {
             mmu_command(MmuCmd::K0 + tmp_extruder);
-            manage_response(true, true, MMU_UNLOAD_MOVE);
+            manage_response(true, true);
         }
         #endif //MMU_HAS_CUTTER
         mmu_command(MmuCmd::T0 + tmp_extruder);
@@ -1266,3 +1266,22 @@ void mmu_eject_filament(uint8_t filament, bool recover)
     puts_P(PSTR("Filament nr out of range!"));
   }
 }
+
+#ifdef MMU_HAS_CUTTER
+void mmu_cut_filament(uint8_t filament_nr)
+{
+    menu_back();
+    bFilamentAction=false;                            // NOT in "mmu_load_to_nozzle_menu()"
+    if (degHotend0() <= EXTRUDE_MINTEMP && isEXTLoaded) show_preheat_nozzle_warning();
+    else
+    {
+        LcdUpdateDisabler disableLcdUpdate;
+        lcd_clear();
+        lcd_set_cursor(0, 1); lcd_puts_P(_i("Cutting filament")); //// c=18
+        lcd_print(" ");
+        lcd_print(filament_nr + 1);
+        mmu_command(MmuCmd::K0 + filament_nr);
+        manage_response(false, false);
+    }
+}
+#endif //MMU_HAS_CUTTER

@@ -94,6 +94,9 @@ extern void extr_unload_();
 extern void mmu_filament_ramming();
 extern void mmu_load_step(bool synchronize = true);
 extern void mmu_continue_loading(void);
+#ifdef MMU_HAS_CUTTER
+extern void mmu_cut_filament(uint8_t filament_nr);
+#endif //MMU_HAS_CUTTER
 
 extern bool mmu_check_version();
 extern void mmu_show_warning();

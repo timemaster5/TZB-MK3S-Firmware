@@ -458,7 +458,7 @@ void mmu_loop(void)
         mmu_fil_loaded = false;
         mmu_state = S::Wait;
       }
-      else if (((mmu_cmd >= MmuCmd::E0) && (mmu_cmd <= MmuCmd::E4)) || ((mmu_cmd >= MmuCmd::K0) && (mmu_cmd <= MmuCmd::K4)))
+      else if ((mmu_cmd >= MmuCmd::E0) && (mmu_cmd <= MmuCmd::E4))
       { // CMD Has a Long execution, ensure to handle this
         filament = mmu_cmd - MmuCmd::E0;
         printf_P(PSTR("MK32S => MMU2S 'E%d'\n"), filament);
@@ -476,9 +476,17 @@ void mmu_loop(void)
       else if ((mmu_cmd >= MmuCmd::F0) && (mmu_cmd <= MmuCmd::F4))
       {
         uint8_t extruder = mmu_cmd - MmuCmd::F0;
-        unsigned char tempTxCMD[5] = {'F', (uint8_t)extruder, mmu_filament_types[extruder], BLK, BLK};
+        unsigned char tempFxCMD[5] = {'F', (uint8_t)extruder, mmu_filament_types[extruder], BLK, BLK};
         printf_P(PSTR("MK32S => MMU2S 'F%d %d'\n"), extruder, mmu_filament_types[extruder]);
-        uart2_txPayload(tempTxCMD);
+        uart2_txPayload(tempFxCMD);
+        mmu_state = S::Wait;
+      }
+      else if ((mmu_cmd >= MmuCmd::K0) && (mmu_cmd <= MmuCmd::K4))
+      {
+        uint8_t extruder = mmu_cmd - MmuCmd::K0;
+        unsigned char tempKxCMD[5] = {'K', (uint8_t)extruder, BLK, BLK, BLK};
+        printf_P(PSTR("MK32S => MMU2S 'K%d'\n"), extruder);
+        uart2_txPayload(tempKxCMD);
         mmu_state = S::Wait;
       }
       mmu_cmd = MmuCmd::None;
@@ -1272,6 +1280,8 @@ void mmu_cut_filament(uint8_t filament_nr)
 {
     menu_back();
     bFilamentAction=false;                            // NOT in "mmu_load_to_nozzle_menu()"
+    tmp_extruder = filament_nr;
+    mmu_extruder = tmp_extruder;
     if (degHotend0() <= EXTRUDE_MINTEMP && isEXTLoaded) show_preheat_nozzle_warning();
     else
     {

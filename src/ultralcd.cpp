@@ -6378,7 +6378,7 @@ static void mmu_fil_eject_menu()
 
 static void mmu_cut_filament_menu()
 {
-    if(bFilamentAction)
+    if(bFilamentAction || !isEXTLoaded)
     {
         MENU_BEGIN();
         MENU_ITEM_BACK_P(_T(MSG_MAIN));

@@ -1175,28 +1175,36 @@ void mmu_continue_loading(void)
   };
   Ls state = Ls::Enter;
 
+  const uint8_t max_retries = 3;
+  uint8_t retry = 0;
+
   while (!success)
   {
     switch (state)
     {
     case Ls::Enter:
         increment_load_fail();
-        state = Ls::Unload;
-        break;
+        
+        // no break, fall to next case
     case Ls::Retry:
-        #ifdef MMU_HAS_CUTTER
-        if (1 == eeprom_read_byte((uint8_t*)EEPROM_MMU_CUTTER_ENABLED))
+        ++retry;
+        if (retry <= max_retries)
         {
-            mmu_command(MmuCmd::K0 + tmp_extruder);
+            mmu_command(MmuCmd::U0);
+            manage_response(false, true);
+            #ifdef MMU_HAS_CUTTER
+            if (1 == eeprom_read_byte((uint8_t*)EEPROM_MMU_CUTTER_ENABLED))
+            {
+                mmu_command(MmuCmd::K0 + tmp_extruder);
+                manage_response(true, true);
+            }
+            #endif //MMU_HAS_CUTTER
+            mmu_command(MmuCmd::T0 + tmp_extruder);
             manage_response(true, true);
-        }
-        #endif //MMU_HAS_CUTTER
-        mmu_command(MmuCmd::T0 + tmp_extruder);
-        manage_response(true, true);
-        mmu_command(MmuCmd::C0);
-        manage_response(true, true);
-        success = can_load();
-        state = Ls::Unload;
+            mmu_command(MmuCmd::C0);
+            manage_response(true, true);
+            success = can_load();
+        } else state = Ls::Unload;
         break;
     case Ls::Unload:
         printf_P(PSTR("Jam, Malformed Tip or Clog.\n"));

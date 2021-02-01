@@ -61,10 +61,12 @@ void st_reset_timer();
 void checkHitEndstops(); //call from somewhere to create an serial error message with the locations the endstops where hit, in case they were triggered
 bool endstops_hit_on_purpose(); //avoid creation of the message, i.e. after homing and before a routine call of checkHitEndstops();
 bool endstop_z_hit_on_purpose();
+bool endstop_z_blt_hit_on_purpose();
 
 
 bool enable_endstops(bool check); // Enable/disable endstop checking. Return the old value.
 bool enable_z_endstop(bool check);
+bool enable_z_blt_endstop(bool check);
 void invert_z_endstop(bool endstop_invert);
 
 void checkStepperErrors(); //Print errors detected by the stepper

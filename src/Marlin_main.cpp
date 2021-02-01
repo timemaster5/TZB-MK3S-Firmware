@@ -4916,11 +4916,11 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			nMeasPoints = eeprom_read_byte((uint8_t*)EEPROM_MBL_POINTS_NR);
 		}
 
-    #ifdef BLTOUCH
+#ifdef BLTOUCH
     uint8_t nProbeRetry = 1; // BLTOUCH Default to 1
-    #else
+#else
 		uint8_t nProbeRetry = 3;
-    #endif // BLTOUCH
+#endif // BLTOUCH
 		if (code_seen('R')) {
 			nProbeRetry = code_value_uint8();
 			if (nProbeRetry > 10) {
@@ -4928,12 +4928,17 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			}
 		}
 		else {
+#ifndef BLTOUCH
 			nProbeRetry = eeprom_read_byte((uint8_t*)EEPROM_MBL_PROBE_NR);
+#endif // BLTOUCH
 		}
+#ifdef BLTOUCH 
+		bool magnet_elimination = false;
+#else
 		bool magnet_elimination = (eeprom_read_byte((uint8_t*)EEPROM_MBL_MAGNET_ELIMINATION) > 0);
+#endif // BLTOUCH
 		
 #ifndef PINDA_THERMISTOR
-  #ifndef BLTOUCH
 		if (run == false && temp_cal_active == true && calibration_status_pinda() == true && target_temperature_bed >= 50)
 		{
 			temp_compensation_start();
@@ -4943,7 +4948,6 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			break;
 		}
         run = false;
-  #endif // BLTOUCH
 #endif //PINDA_THERMISTOR
 		// Save custom message state, set a new custom message state to display: Calibrating point 9.
 		CustomMsg custom_message_type_old = custom_message_type;
@@ -5025,14 +5029,23 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 
 			// Move Z up to MESH_HOME_Z_SEARCH.
 			if((ix == 0) && (iy == 0)) current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
+      #ifdef BLTOUCH
+			else current_position[Z_AXIS] += 2.6f / nMeasPoints; //use relative movement from Z coordinate where PINDa triggered on previous point. This makes calibration faster.
+      #else
 			else current_position[Z_AXIS] += 2.f / nMeasPoints; //use relative movement from Z coordinate where PINDa triggered on previous point. This makes calibration faster.
+      #endif // BLTOUCH
 			float init_z_bckp = current_position[Z_AXIS];
 			plan_buffer_line_curposXYZE(Z_LIFT_FEEDRATE);
 			st_synchronize();
 
 			// Move to XY position of the sensor point.
+      #ifdef BLTOUCH
+			current_position[X_AXIS] = BED_X_BLT(ix, nMeasPoints);
+			current_position[Y_AXIS] = BED_Y_BLT(iy, nMeasPoints);
+      #else
 			current_position[X_AXIS] = BED_X(ix, nMeasPoints);
 			current_position[Y_AXIS] = BED_Y(iy, nMeasPoints);
+      #endif // BLTOUCH
 
 			//printf_P(PSTR("[%f;%f]\n"), current_position[X_AXIS], current_position[Y_AXIS]);
 
@@ -5050,6 +5063,10 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			//printf_P(PSTR("after clamping: [%f;%f]\n"), current_position[X_AXIS], current_position[Y_AXIS]);
 			plan_buffer_line_curposXYZE(XY_AXIS_FEEDRATE);
 			st_synchronize();
+
+#ifdef BLTOUCH
+      g80_blt = true;
+#endif // BLTOUCH
 
 			// Go down until endstop is hit
 			const float Z_CALIBRATION_THRESHOLD = 1.f;
@@ -5089,7 +5106,9 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			float offset_z = 0;
 
 #ifdef PINDA_THERMISTOR
+  #ifndef BLTOUCH
 			offset_z = temp_compensation_pinda_thermistor_offset(current_temperature_pinda);
+  #endif // BLTOUCH
 #endif //PINDA_THERMISTOR
 //			#ifdef SUPPORT_VERBOSITY
 /*			if (verbosity_level >= 1)
@@ -5107,6 +5126,9 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			mesh_point++;
 			lcd_update(1);
 		}
+#ifdef BLTOUCH
+    g80_blt = false;
+#endif // BLTOUCH
 		current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
 		#ifdef SUPPORT_VERBOSITY
 		if (verbosity_level >= 20) {

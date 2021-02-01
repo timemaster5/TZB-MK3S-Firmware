@@ -16,6 +16,9 @@ uint8_t world2machine_correction_mode;
 float   world2machine_rotation_and_skew[2][2];
 float   world2machine_rotation_and_skew_inv[2][2];
 float   world2machine_shift[2];
+#ifdef BLTOUCH
+bool    g80_blt = false;
+#endif // BLTOUCH
 
 // Weight of the Y coordinate for the least squares fitting of the bed induction sensor targets.
 // Only used for the first row of the points, which may not befully in reach of the sensor.
@@ -956,16 +959,50 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
     if(verbosity_level >= 10) SERIAL_ECHOLNPGM("find bed induction sensor point z");
 	#endif // SUPPORT_VERBOSITY
 	bool endstops_enabled  = enable_endstops(true);
+#ifdef BLTOUCH
+    #if (g80_blt)
+            bool endstop_z_enabled = enable_z_blt_endstop(false);
+    #else
+        bool endstop_z_enabled = enable_z_endstop(false);
+    #endif
+#else  
     bool endstop_z_enabled = enable_z_endstop(false);
+#endif // BLTOUCH
     float z = 0.f;
+#ifdef BLTOUCH
+    #if (g80_blt)
+        endstop_z_blt_hit_on_purpose();
+    #else
+        endstop_z_hit_on_purpose();
+    #endif
+#else
     endstop_z_hit_on_purpose();
+#endif // BLTOUCH
+
+#ifdef BLTOUCH
+    #if (g80_blt)
+        //Setup BLTOUCH for probe
+        enquecommand_front_P((PSTR("M280 P0 S10"))); // Deploy TouchPIN
+        st_synchronize();
+        enquecommand_front_P((PSTR("M280 P0 S60"))); // Set Touch Switch Mode
+        st_synchronize();
+    #endif
+#endif // BLTOUCH
 
     // move down until you find the bed
     current_position[Z_AXIS] = minimum_z;
     go_to_current(homing_feedrate[Z_AXIS]/60);
     // we have to let the planner know where we are right now as it is not where we said to go.
     update_current_position_z();
+#ifdef BLTOUCH
+    #if (g80_blt)
+        if (! endstop_z_blt_hit_on_purpose())
+    #else
+        if (! endstop_z_hit_on_purpose())
+    #endif
+#else
     if (! endstop_z_hit_on_purpose())
+#endif // BLTOUCH
 	{
 		//printf_P(PSTR("endstop not hit 1, current_pos[Z]: %f \n"), current_position[Z_AXIS]);
 		goto error;
@@ -979,7 +1016,16 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 #endif //TMC2130
     for (uint8_t i = 0; i < n_iter; ++ i)
 	{
-		
+#ifdef BLTOUCH
+    #if (g80_blt)
+        //Setup BLTOUCH for probe
+        enquecommand_front_P((PSTR("M280 P0 S10"))); // Deploy TouchPIN
+        st_synchronize();
+        enquecommand_front_P((PSTR("M280 P0 S60"))); // Set Touch Switch Mode
+        st_synchronize();
+    #endif
+#endif // BLTOUCH
+
 		current_position[Z_AXIS] += high_deviation_occured ? 0.5 : 0.2;
 		float z_bckp = current_position[Z_AXIS];
 		go_to_current(homing_feedrate[Z_AXIS]/60);
@@ -1002,8 +1048,16 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 
 
 
-		if (!endstop_z_hit_on_purpose())
-		{
+#ifdef BLTOUCH
+    #if (g80_blt)
+        if (! endstop_z_blt_hit_on_purpose())
+    #else
+        if (! endstop_z_hit_on_purpose())
+    #endif
+#else
+        if (! endstop_z_hit_on_purpose())
+#endif // BLTOUCH
+        {
 			//printf_P(PSTR("i = %d, endstop not hit 2, current_pos[Z]: %f \n"), i, current_position[Z_AXIS]);
 			goto error;
 		}
@@ -1041,7 +1095,15 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 
 
     enable_endstops(endstops_enabled);
+#ifdef BLTOUCH
+    #if (g80_blt)
+    enable_z_blt_endstop(endstop_z_enabled);
+    #else
     enable_z_endstop(endstop_z_enabled);
+    #endif
+#else  
+    enable_z_endstop(endstop_z_enabled);
+#endif // BLTOUCH
 //    SERIAL_ECHOLNPGM("find_bed_induction_sensor_point_z 3");
 #ifdef TMC2130
 	FORCE_HIGH_POWER_END;
@@ -1052,7 +1114,17 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 error:
 //    SERIAL_ECHOLNPGM("find_bed_induction_sensor_point_z 4");
     enable_endstops(endstops_enabled);
+#ifdef BLTOUCH
+    #if (g80_blt)
+        enable_z_blt_endstop(endstop_z_enabled);
+        enquecommand_front_P((PSTR("M280 P0 S160"))); // Clear any errors
+        st_synchronize();
+        enquecommand_front_P((PSTR("M280 P0 S90"))); // Retrack TouchPIN
+        st_synchronize();
+    #else
     enable_z_endstop(endstop_z_enabled);
+    #endif
+#endif // BLTOUCH
 #ifdef TMC2130
 	FORCE_HIGH_POWER_END;
 #endif

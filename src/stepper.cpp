@@ -57,6 +57,9 @@ bool x_max_endstop = false;
 bool y_min_endstop = false;
 bool y_max_endstop = false;
 bool z_min_endstop = false;
+#ifdef BLTOUCH
+bool z_min_blt_endstop = false;
+#endif // BLTOUCH
 bool z_max_endstop = false;
 //===========================================================================
 //=============================private variables ============================
@@ -82,6 +85,9 @@ volatile long endstops_stepsTotal,endstops_stepsDone;
 static volatile bool endstop_x_hit=false;
 static volatile bool endstop_y_hit=false;
 static volatile bool endstop_z_hit=false;
+#ifdef BLTOUCH
+static volatile bool endstop_z_blt_hit=false;
+#endif // BLTOUCH
 #ifdef ABORT_ON_ENDSTOP_HIT_FEATURE_ENABLED
 bool abort_on_endstop_hit = false;
 #endif
@@ -101,11 +107,17 @@ static bool old_y_max_endstop=false;
 static bool old_x_min_endstop=false;
 static bool old_y_min_endstop=false;
 static bool old_z_min_endstop=false;
+#ifdef BLTOUCH
+static bool old_z_min_blt_endstop=false;
+#endif // BLTOUCH
 static bool old_z_max_endstop=false;
 
 static bool check_endstops = true;
 
 static bool check_z_endstop = false;
+#ifdef BLTOUCH
+static bool check_z_blt_endstop = false;
+#endif // BLTOUCH
 static bool z_endstop_invert = false;
 
 volatile long count_position[NUM_AXIS] = { 0, 0, 0, 0};
@@ -150,7 +162,10 @@ extern uint16_t stepper_timer_overflow_last;
 
 void checkHitEndstops()
 {
- if( endstop_x_hit || endstop_y_hit || endstop_z_hit) {
+ if( endstop_x_hit || endstop_y_hit || endstop_z_hit 
+ #ifdef BLTOUCH || endstop_z_blt_hit 
+ #endif // BLTOUCH
+ ) {
    SERIAL_ECHO_START;
    SERIAL_ECHORPGM(MSG_ENDSTOPS_HIT);
    if(endstop_x_hit) {
@@ -165,10 +180,18 @@ void checkHitEndstops()
      SERIAL_ECHOPAIR(" Z:",(float)endstops_trigsteps[Z_AXIS]/cs.axis_steps_per_unit[Z_AXIS]);
 //     LCD_MESSAGERPGM(CAT2((MSG_ENDSTOPS_HIT),PSTR("Z")));
    }
+#ifdef BLTOUCH
+   if(endstop_z_blt_hit) {
+     SERIAL_ECHOPAIR(" Z-BLT:",(float)endstops_trigsteps[Z_AXIS]/cs.axis_steps_per_unit[Z_AXIS]);
+   }
+#endif // BLTOUCH
    SERIAL_ECHOLN("");
    endstop_x_hit=false;
    endstop_y_hit=false;
    endstop_z_hit=false;
+#ifdef BLTOUCH
+   endstop_z_blt_hit=false;
+#endif // BLTOUCH
 #if defined(ABORT_ON_ENDSTOP_HIT_FEATURE_ENABLED) && defined(SDSUPPORT)
    if (abort_on_endstop_hit)
    {
@@ -199,6 +222,15 @@ bool endstop_z_hit_on_purpose()
   return hit;
 }
 
+#ifdef BLTOUCH
+bool endstop_z_blt_hit_on_purpose()
+{
+  bool hit = endstop_z_blt_hit;
+  endstop_z_blt_hit=false;
+  return hit;
+}
+#endif // BLTOUCH
+
 bool enable_endstops(bool check)
 {
   bool old = check_endstops;
@@ -213,6 +245,16 @@ bool enable_z_endstop(bool check)
 	endstop_z_hit = false;
 	return old;
 }
+
+#ifdef BLTOUCH
+bool enable_z_blt_endstop(bool check)
+{
+	bool old = check_z_blt_endstop;
+	check_z_blt_endstop = check;
+	endstop_z_blt_hit = false;
+	return old;
+}
+#endif // BLTOUCH
 
 void invert_z_endstop(bool endstop_invert)
 {
@@ -525,6 +567,32 @@ FORCE_INLINE void stepper_check_endstops()
 
     if ((out_bits & (1<<Z_AXIS)) != 0) // -direction
     {
+#ifdef BLTOUCH
+      #if defined(Z_MIN_PIN_BLT) && (Z_MIN_PIN_BLT > -1) && !defined(DEBUG_DISABLE_ZMINLIMIT)
+      if (! check_z_blt_endstop) {
+        #ifdef TMC2130_SG_HOMING
+          // Stall guard homing turned on
+#ifdef TMC2130_STEALTH_Z
+		  if ((tmc2130_mode == TMC2130_MODE_SILENT) && !(tmc2130_sg_homing_axes_mask & 0x04))
+	          z_min_blt_endstop = (READ(Z_MIN_PIN_BLT) != Z_MIN_ENDSTOP_INVERTING);
+		  else
+#endif //TMC2130_STEALTH_Z
+	          z_min_blt_endstop = (READ(Z_MIN_PIN_BLT) != Z_MIN_ENDSTOP_INVERTING) || (READ(Z_TMC2130_DIAG) != 0);
+        #else
+          z_min_blt_endstop = (READ(Z_MIN_PIN_BLT) != Z_MIN_ENDSTOP_INVERTING);
+        #endif //TMC2130_SG_HOMING
+        if(z_min_blt_endstop && old_z_min_blt_endstop && (current_block->steps_z.wide > 0)) {
+          endstops_trigsteps[Z_AXIS] = count_position[Z_AXIS];
+          endstop_z_blt_hit=true;
+          enquecommand_front_P((PSTR("M280 P0 S90"))); // Retrack TouchPIN
+          st_synchronize();
+          step_events_completed.wide = current_block->step_event_count.wide;
+        }
+        old_z_min_blt_endstop = z_min_blt_endstop;
+      }
+      #endif
+#endif // BLTOUCH
+
       #if defined(Z_MIN_PIN) && (Z_MIN_PIN > -1) && !defined(DEBUG_DISABLE_ZMINLIMIT)
       if (! check_z_endstop) {
         #ifdef TMC2130_SG_HOMING

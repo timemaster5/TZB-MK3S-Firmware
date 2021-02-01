@@ -19,7 +19,7 @@ extern PGM_P sPrinterName;
 #define FW_VERSION "TZB3.2.0"
 // BASED ON PRUSA Stock FW 3.9.3
 // https://github.com/vertigo235/Build-Prusa-LA-15
-#define FW_COMMIT_NR   2496
+#define FW_COMMIT_NR   2497
 // FW_VERSION_UNKNOWN means this is an unofficial build.
 // The firmware should only be checked into github with this symbol.
 #define FW_DEV_VERSION FW_VERSION_RC
@@ -229,6 +229,10 @@ your extruder heater takes 2 minutes to hit the target on heating.
   // #define ENDSTOPPULLUP_XMIN
   // #define ENDSTOPPULLUP_YMIN
   // #define ENDSTOPPULLUP_ZMIN
+  #ifdef BLTOUCH
+  #define ENDSTOPPULLUP_ZMIN_BLT
+  #endif // BLTOUCH
+
 #endif
 
 #ifdef ENDSTOPPULLUPS
@@ -238,6 +242,9 @@ your extruder heater takes 2 minutes to hit the target on heating.
   #define ENDSTOPPULLUP_XMIN
   #define ENDSTOPPULLUP_YMIN
   #define ENDSTOPPULLUP_ZMIN
+  #ifdef BLTOUCH
+  #define ENDSTOPPULLUP_ZMIN_BLT
+  #endif // BLTOUCH
 #endif
 
 // The pullups are needed if you directly connect a mechanical endswitch between the signal and ground pins.
@@ -522,7 +529,9 @@ your extruder heater takes 2 minutes to hit the target on heating.
 // leaving it undefined or defining as 0 will disable the servo subsystem
 // If unsure, leave commented / disabled
 //
-//#define NUM_SERVOS 3 // Servo index starts with 0 for M280 command
+#ifdef BLTOUCH
+#define NUM_SERVOS 1 // Servo index starts with 0 for M280 command
+#endif // BLTOUCH
 
 #define DEFAULT_NOMINAL_FILAMENT_DIA  1.75  //Enter the diameter (in mm) of the filament generally used (3.0 mm or 1.75 mm). Used by the volumetric extrusion.
 

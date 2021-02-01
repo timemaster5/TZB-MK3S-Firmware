@@ -1160,6 +1160,13 @@ void st_init()
     #endif
   #endif
 
+  #if defined(Z_MIN_PIN_BLT) && Z_MIN_PIN_BLT > -1
+    SET_INPUT(Z_MIN_PIN_BLT);
+    #ifdef ENDSTOPPULLUP_ZMIN_BLT
+      WRITE(Z_MIN_PIN_BLT,HIGH);
+    #endif
+  #endif
+
   #if defined(X_MAX_PIN) && X_MAX_PIN > -1
     SET_INPUT(X_MAX_PIN);
     #ifdef ENDSTOPPULLUP_XMAX

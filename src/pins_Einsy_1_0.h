@@ -75,6 +75,10 @@
 
 #define TEMP_PINDA_PIN       3 //A3
 
+// BLTOUCH PINS ON J19 Connector
+#define SERVO0_PIN			53 //PB0
+#define Z_MIN_PIN_BLT		19 //PD2
+
 #define VOLT_PWR_PIN         4 //A4
 #define VOLT_BED_PIN         9 //A9
 #define VOLT_IR_PIN          8 //A8

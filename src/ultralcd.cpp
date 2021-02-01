@@ -4009,8 +4009,11 @@ static void lcd_show_sensors_state()
 	uint8_t pinda_state = STATE_NA;
 	uint8_t finda_state = STATE_NA;
 	uint8_t idler_state = STATE_NA;
-
+	#ifdef BLTOUCH
+	pinda_state = READ(Z_MIN_PIN_BLT);
+	#else
 	pinda_state = READ(Z_MIN_PIN);
+	#endif // BLTOUCH
 	if (mmu_enabled && ((_millis() - mmu_last_finda_response) < 1000ul) )
 	{
 		finda_state = mmu_finda;
@@ -4019,7 +4022,11 @@ static void lcd_show_sensors_state()
 		idler_state = !PIN_GET(IR_SENSOR_PIN);
 	}
 	lcd_puts_at_P(0, 0, _i("Sensor state"));
+	#ifdef BLTOUCH
+	lcd_puts_at_P(1, 1, _i("BLTOUCH:"));
+	#else
 	lcd_puts_at_P(1, 1, _i("PINDA:"));
+	#endif // BLTOUCH
 	lcd_set_cursor(LCD_WIDTH - 4, 1);
 	lcd_print_state(pinda_state);
 	

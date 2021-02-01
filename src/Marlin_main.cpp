@@ -2057,7 +2057,11 @@ static void do_blocking_move_relative(float offset_x, float offset_y, float offs
 static float probe_pt(float x, float y, float z_before) {
   // move to right place
   do_blocking_move_to(current_position[X_AXIS], current_position[Y_AXIS], z_before);
+  #ifdef BLTOUCH
+  do_blocking_move_to(x - X_PROBE_OFFSET_FROM_EXTRUDER_BLT, y - Y_PROBE_OFFSET_FROM_EXTRUDER_BLT, current_position[Z_AXIS]);
+  #else
   do_blocking_move_to(x - X_PROBE_OFFSET_FROM_EXTRUDER, y - Y_PROBE_OFFSET_FROM_EXTRUDER, current_position[Z_AXIS]);
+  #endif // BLTOUCH
 
   run_z_probe();
   float measured_z = current_position[Z_AXIS];
@@ -2731,10 +2735,10 @@ static void gcode_G28(bool home_x_axis, long home_x_value, bool home_y_axis, lon
                                                 // Let's see if X and Y are homed and probe is inside bed area.
           if(home_z) {
             if ( (axis_known_position[X_AXIS]) && (axis_known_position[Y_AXIS]) \
-              && (current_position[X_AXIS]+X_PROBE_OFFSET_FROM_EXTRUDER >= X_MIN_POS) \
-              && (current_position[X_AXIS]+X_PROBE_OFFSET_FROM_EXTRUDER <= X_MAX_POS) \
-              && (current_position[Y_AXIS]+Y_PROBE_OFFSET_FROM_EXTRUDER >= Y_MIN_POS) \
-              && (current_position[Y_AXIS]+Y_PROBE_OFFSET_FROM_EXTRUDER <= Y_MAX_POS)) {
+              && (current_position[X_AXIS]+X_PROBE_OFFSET_FROM_EXTRUDER_BLT >= X_MIN_POS) \
+              && (current_position[X_AXIS]+X_PROBE_OFFSET_FROM_EXTRUDER_BLT <= X_MAX_POS) \
+              && (current_position[Y_AXIS]+Y_PROBE_OFFSET_FROM_EXTRUDER_BLT >= Y_MIN_POS) \
+              && (current_position[Y_AXIS]+Y_PROBE_OFFSET_FROM_EXTRUDER_BLT <= Y_MAX_POS)) {
 
               current_position[Z_AXIS] = 0;
               plan_set_position_curposXYZE();
@@ -4912,7 +4916,11 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			nMeasPoints = eeprom_read_byte((uint8_t*)EEPROM_MBL_POINTS_NR);
 		}
 
+    #ifdef BLTOUCH
+    uint8_t nProbeRetry = 1; // BLTOUCH Default to 1
+    #else
 		uint8_t nProbeRetry = 3;
+    #endif // BLTOUCH
 		if (code_seen('R')) {
 			nProbeRetry = code_value_uint8();
 			if (nProbeRetry > 10) {
@@ -4925,6 +4933,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 		bool magnet_elimination = (eeprom_read_byte((uint8_t*)EEPROM_MBL_MAGNET_ELIMINATION) > 0);
 		
 #ifndef PINDA_THERMISTOR
+  #ifndef BLTOUCH
 		if (run == false && temp_cal_active == true && calibration_status_pinda() == true && target_temperature_bed >= 50)
 		{
 			temp_compensation_start();
@@ -4934,6 +4943,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			break;
 		}
         run = false;
+  #endif // BLTOUCH
 #endif //PINDA_THERMISTOR
 		// Save custom message state, set a new custom message state to display: Calibrating point 9.
 		CustomMsg custom_message_type_old = custom_message_type;
@@ -5232,9 +5242,11 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
                     SERIAL_PROTOCOLPGM("\n");
                 }
 */
+    #ifndef BLTOUCH
 		if (nMeasPoints == 7 && magnet_elimination) {
 			mbl_interpolation(nMeasPoints);
 		}
+    #endif // BLTOUCH
 /*
 		        SERIAL_PROTOCOLPGM("Num X,Y: ");
                 SERIAL_PROTOCOL(MESH_NUM_X_POINTS);
@@ -6886,7 +6898,11 @@ Sigma_Exit:
       #endif
       #if defined(Z_MIN_PIN) && Z_MIN_PIN > -1
         SERIAL_PROTOCOLRPGM(MSG_Z_MIN);
+        #ifdef BLTOUCH
+        if(READ(Z_MIN_PIN_BLT)^Z_MIN_ENDSTOP_INVERTING){
+        #else
         if(READ(Z_MIN_PIN)^Z_MIN_ENDSTOP_INVERTING){
+        #endif // BLTOUCH
           SERIAL_PROTOCOLRPGM(MSG_ENDSTOP_HIT);
         }else{
           SERIAL_PROTOCOLRPGM(MSG_ENDSTOP_OPEN);

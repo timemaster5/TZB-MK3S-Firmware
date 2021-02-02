@@ -4,8 +4,8 @@
 #define BED_ZERO_REF_X (- 22.f + X_PROBE_OFFSET_FROM_EXTRUDER) // -22 + 23 = 1
 #define BED_ZERO_REF_Y (- 0.6f + Y_PROBE_OFFSET_FROM_EXTRUDER + 4.f) // -0.6 + 5 + 4 = 8.4
 #ifdef BLTOUCH
-#define BED_ZERO_REF_X_BLT ( 21.5f + X_PROBE_OFFSET_FROM_EXTRUDER_BLT) // 21.5 + -20.5 = 1
-#define BED_ZERO_REF_Y_BLT (- 0.6f + Y_PROBE_OFFSET_FROM_EXTRUDER_BLT + 4.f) // 42.5 + -34.1 + 4 = 8.4
+#define BED_ZERO_REF_X_BLT (- 22.f + X_PROBE_OFFSET_FROM_EXTRUDER_BLT) // -22 + -20.5 = -42.5
+#define BED_ZERO_REF_Y_BLT (- 0.6f + Y_PROBE_OFFSET_FROM_EXTRUDER_BLT + 4.f) // -6 + -34.1 + 4 = -36.1
 #endif // BLTOUCH
 
 #ifdef HEATBED_V2
@@ -16,10 +16,10 @@
 #define BED_Yn (213.4f - BED_ZERO_REF_Y) //205
 
 #ifdef BLTOUCH
-#define BED_X0_BLT (2.f - BED_ZERO_REF_X_BLT) //1
-#define BED_Y0_BLT (9.4f - BED_ZERO_REF_Y_BLT) //1
-#define BED_Xn_BLT (206.f - BED_ZERO_REF_X_BLT) //205
-#define BED_Yn_BLT (213.4f - BED_ZERO_REF_Y_BLT) //205
+#define BED_X0_BLT (2.f - BED_ZERO_REF_X_BLT) //44.5
+#define BED_Y0_BLT (9.4f - BED_ZERO_REF_Y_BLT) //45.1
+#define BED_Xn_BLT (206.f - BED_ZERO_REF_X_BLT) //161.5
+#define BED_Yn_BLT (213.4f - BED_ZERO_REF_Y_BLT) //168.3
 #endif // BLTOUCH
 
 #else
@@ -32,8 +32,8 @@
 #endif //not HEATBED_V2
 
 #ifdef BLTOUCH
-#define BED_X_BLT(i, n) ((float)i * (BED_Xn_BLT - BED_X0_BLT) / (n - 1) + BED_X0_BLT)
-#define BED_Y_BLT(i, n)  ((float)i * (BED_Yn_BLT - BED_Y0_BLT) / (n - 1) + BED_Y0_BLT)
+#define BED_X_BLT(i, n) ((float)i * (BED_Xn - BED_X0_BLT) / (n - 1) + BED_X0_BLT)
+#define BED_Y_BLT(i, n)  ((float)i * (BED_Yn - BED_Y0_BLT) / (n - 1) + BED_Y0_BLT)
 #endif // BLTOUCH
 #define BED_X(i, n) ((float)i * (BED_Xn - BED_X0) / (n - 1) + BED_X0)
 #define BED_Y(i, n)  ((float)i * (BED_Yn - BED_Y0) / (n - 1) + BED_Y0)
@@ -45,7 +45,6 @@ extern const float bed_ref_points_4[] PROGMEM;
 
 extern const float bed_skew_angle_mild;
 extern const float bed_skew_angle_extreme;
-extern bool g80_blt;
 
 // Is the world2machine correction activated?
 enum World2MachineCorrectionMode
@@ -163,6 +162,7 @@ inline bool world2machine_clamp(float &x, float &y)
 }
 
 extern bool find_bed_induction_sensor_point_z(float minimum_z = -10.f, uint8_t n_iter = 3, int verbosity_level = 0);
+extern bool find_bltouch_point_z(float minimum_z, uint8_t n_iter = 1);
 extern bool find_bed_induction_sensor_point_xy(int verbosity_level = 0);
 extern void go_home_with_z_lift();
 

@@ -687,10 +687,7 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
         }
         delay_keep_alive(100);
       }
-      //_response = mmu_get_response();
     }
-    //_delay(100);
-    //mmu_response = mmu_get_response();
 	}
   if (mmu_print_saved) {
     printf_P(PSTR("MMU starts responding\n"));

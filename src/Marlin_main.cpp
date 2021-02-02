@@ -4928,9 +4928,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			}
 		}
 		else {
-#ifndef BLTOUCH
 			nProbeRetry = eeprom_read_byte((uint8_t*)EEPROM_MBL_PROBE_NR);
-#endif // BLTOUCH
 		}
 #ifdef BLTOUCH 
 		bool magnet_elimination = false;
@@ -4967,8 +4965,13 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 		current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
 		plan_buffer_line_curposXYZE(homing_feedrate[Z_AXIS] / 60);
 		// The move to the first calibration point.
+#ifdef BLTOUCH
+		current_position[X_AXIS] = BED_X0_BLT;
+		current_position[Y_AXIS] = BED_Y0_BLT;
+#else
 		current_position[X_AXIS] = BED_X0;
 		current_position[Y_AXIS] = BED_Y0;
+#endif // BLTOUCH
 
 		#ifdef SUPPORT_VERBOSITY
 		if (verbosity_level >= 1)
@@ -4983,6 +4986,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 		plan_buffer_line_curposXYZE(homing_feedrate[X_AXIS] / 30);
 		// Wait until the move is finished.
 		st_synchronize();
+    //find_bltouch_point_z(-10.f);
 
 		uint8_t mesh_point = 0; //index number of calibration point
 
@@ -5064,13 +5068,13 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			plan_buffer_line_curposXYZE(XY_AXIS_FEEDRATE);
 			st_synchronize();
 
-#ifdef BLTOUCH
-      g80_blt = true;
-#endif // BLTOUCH
-
 			// Go down until endstop is hit
 			const float Z_CALIBRATION_THRESHOLD = 1.f;
+#ifdef BLTOUCH
+			if (!find_bltouch_point_z((has_z && mesh_point > 0) ? z0 - Z_CALIBRATION_THRESHOLD : -10.f, nProbeRetry)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we dont have data max difference is 10mm from initial point  
+#else
 			if (!find_bed_induction_sensor_point_z((has_z && mesh_point > 0) ? z0 - Z_CALIBRATION_THRESHOLD : -10.f, nProbeRetry)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we dont have data max difference is 10mm from initial point  
+#endif // BLTOUCH
 				printf_P(_T(MSG_BED_LEVELING_FAILED_POINT_LOW));
 				break;
 			}
@@ -5079,8 +5083,11 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 				current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
 				plan_buffer_line_curposXYZE(Z_LIFT_FEEDRATE);
 				st_synchronize();
-
+#ifdef BLTOUCH
+        if (!find_bltouch_point_z((has_z && mesh_point > 0) ? z0 - Z_CALIBRATION_THRESHOLD : -10.f, nProbeRetry)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we dont have data max difference is 10mm from initial point  
+#else
 				if (!find_bed_induction_sensor_point_z((has_z && mesh_point > 0) ? z0 - Z_CALIBRATION_THRESHOLD : -10.f, nProbeRetry)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we dont have data max difference is 10mm from initial point  
+#endif // BLTOUCH
 					printf_P(_T(MSG_BED_LEVELING_FAILED_POINT_LOW));
 					break;
 				}
@@ -5126,9 +5133,6 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			mesh_point++;
 			lcd_update(1);
 		}
-#ifdef BLTOUCH
-    g80_blt = false;
-#endif // BLTOUCH
 		current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
 		#ifdef SUPPORT_VERBOSITY
 		if (verbosity_level >= 20) {
@@ -5303,7 +5307,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 		mesh_bed_leveling_flag = false;
 		mesh_bed_run_from_menu = false;
 		lcd_update(2);
-		
+  
 	}
 	break;
 

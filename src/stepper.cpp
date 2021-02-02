@@ -584,8 +584,6 @@ FORCE_INLINE void stepper_check_endstops()
         if(z_min_blt_endstop && old_z_min_blt_endstop && (current_block->steps_z.wide > 0)) {
           endstops_trigsteps[Z_AXIS] = count_position[Z_AXIS];
           endstop_z_blt_hit=true;
-          enquecommand_front_P((PSTR("M280 P0 S90"))); // Retrack TouchPIN
-          st_synchronize();
           step_events_completed.wide = current_block->step_event_count.wide;
         }
         old_z_min_blt_endstop = z_min_blt_endstop;

@@ -4986,12 +4986,15 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 		plan_buffer_line_curposXYZE(homing_feedrate[X_AXIS] / 30);
 		// Wait until the move is finished.
 		st_synchronize();
-    //find_bltouch_point_z(-10.f);
 
 		uint8_t mesh_point = 0; //index number of calibration point
 
 		int XY_AXIS_FEEDRATE = homing_feedrate[X_AXIS] / 20;
+    #ifdef BLTOUCH
 		int Z_LIFT_FEEDRATE = homing_feedrate[Z_AXIS] / 40;
+    #else
+    int Z_LIFT_FEEDRATE = homing_feedrate[Z_AXIS] / 60;
+    #endif // BLTOUCH
 		bool has_z = is_bed_z_jitter_data_valid(); //checks if we have data from Z calibration (offsets of the Z heiths of the 8 calibration points from the first point)
 		#ifdef SUPPORT_VERBOSITY
 		if (verbosity_level >= 1) {
@@ -5032,12 +5035,13 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			}
 
 			// Move Z up to MESH_HOME_Z_SEARCH.
-			if((ix == 0) && (iy == 0)) current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
-      #ifdef BLTOUCH
-			else current_position[Z_AXIS] += 2.6f / nMeasPoints; //use relative movement from Z coordinate where PINDa triggered on previous point. This makes calibration faster.
-      #else
+#ifndef BLTOUCH
+			if((ix == 0) && (iy == 0)) 
+#endif // BLTOUCH
+      current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
+#ifndef BLTOUCH
 			else current_position[Z_AXIS] += 2.f / nMeasPoints; //use relative movement from Z coordinate where PINDa triggered on previous point. This makes calibration faster.
-      #endif // BLTOUCH
+#endif // BLTOUCH
 			float init_z_bckp = current_position[Z_AXIS];
 			plan_buffer_line_curposXYZE(Z_LIFT_FEEDRATE);
 			st_synchronize();

@@ -945,7 +945,6 @@ static inline void update_current_position_z()
 #ifdef BLTOUCH
 bool find_bltouch_point_z(float minimum_z, uint8_t n_iter)
 {
-    bedPWMDisabled = 1;
 #ifdef TMC2130
 	FORCE_HIGH_POWER_START;
 #endif
@@ -973,7 +972,6 @@ bool find_bltouch_point_z(float minimum_z, uint8_t n_iter)
 #ifdef TMC2130
 	FORCE_HIGH_POWER_END;
 #endif
-    bedPWMDisabled = 0;
 	return true;
 
 error:
@@ -984,7 +982,6 @@ error:
 #ifdef TMC2130
 	FORCE_HIGH_POWER_END;
 #endif
-    bedPWMDisabled = 0;
 	return false;
 }
 #endif // BLTOUCH

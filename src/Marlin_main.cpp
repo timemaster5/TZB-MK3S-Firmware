@@ -2323,7 +2323,13 @@ void homeaxis(int axis, uint8_t cnt)
         axis_known_position[axis] = true;
         // Move from minimum
 #ifdef TMC2130
-        float dist = - axis_home_dir * 0.01f * tmc2130_home_fsteps[axis];
+        float dist;
+/*#ifdef BLTOUCH
+        if (axis == X_AXIS) dist = BED_X0_BLT;
+        if (axis == Y_AXIS) dist = BED_Y0_BLT;
+#else*/
+        dist = - axis_home_dir * 0.01f * tmc2130_home_fsteps[axis];
+//#endif // BLTOUCH
 #else //TMC2130
         float dist = - axis_home_dir * 0.01f * 64;
 #endif //TMC2130
@@ -2341,16 +2347,37 @@ void homeaxis(int axis, uint8_t cnt)
 #ifdef TMC2130
 		FORCE_HIGH_POWER_START;
 #endif	
+#ifdef BLTOUCH
+      //Setup BLTOUCH for probe
+      servos[0].write(10);
+      _delay(100);
+      servos[0].write(60);
+      bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
+      bool endstop_z_disable = enable_z_endstop(true);
+#endif // BLTOUCH
         int axis_home_dir = home_dir(axis);
         current_position[axis] = 0;
         plan_set_position_curposXYZE();
         destination[axis] = 1.5 * max_length(axis) * axis_home_dir;
         feedrate = homing_feedrate[axis];
+//#ifdef BLTOUCH
+//        plan_buffer_line_destinationXYZE(100/60);
+//#else
         plan_buffer_line_destinationXYZE(feedrate/60);
+//#endif // BLTOUCH
         st_synchronize();
+#ifdef BLTOUCH
+    servos[0].write(90);
+#endif // BLTOUCH
 #ifdef TMC2130
         check_Z_crash();
 #endif //TMC2130
+#ifdef BLTOUCH
+      //Setup BLTOUCH for probe
+      servos[0].write(10);
+      _delay(100);
+      servos[0].write(60);
+#endif // BLTOUCH
         current_position[axis] = 0;
         plan_set_position_curposXYZE();
         destination[axis] = -home_retract_mm(axis) * axis_home_dir;
@@ -2358,8 +2385,17 @@ void homeaxis(int axis, uint8_t cnt)
         st_synchronize();
         destination[axis] = 2*home_retract_mm(axis) * axis_home_dir;
         feedrate = homing_feedrate[axis]/2 ;
+#ifdef BLTOUCH
+        plan_buffer_line_destinationXYZE(80/60);
+#else
         plan_buffer_line_destinationXYZE(feedrate/60);
+#endif // BLTOUCH
         st_synchronize();
+#ifdef BLTOUCH
+    servos[0].write(90);
+    enable_z_blt_endstop(endstop_z_blt_enabled);
+    enable_z_endstop(endstop_z_disable);
+#endif // BLTOUCH        
 #ifdef TMC2130
         check_Z_crash();
 #endif //TMC2130
@@ -2705,6 +2741,10 @@ static void gcode_G28(bool home_x_axis, long home_x_value, bool home_y_axis, lon
               MYSERIAL.println(destination[Z_AXIS]);MYSERIAL.println(destination[E_AXIS]);
               MYSERIAL.println(feedrate);MYSERIAL.println(active_extruder);
 #endif
+#ifdef BLTOUCH
+              destination[X_AXIS] = BED_X0_BLT;
+              destination[Y_AXIS] = BED_Y0_BLT;
+#endif // BLTOUCH
               plan_buffer_line_destinationXYZE(feedrate);
               st_synchronize();
               current_position[X_AXIS] = destination[X_AXIS];
@@ -4990,11 +5030,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 		uint8_t mesh_point = 0; //index number of calibration point
 
 		int XY_AXIS_FEEDRATE = homing_feedrate[X_AXIS] / 20;
-    #ifdef BLTOUCH
-		int Z_LIFT_FEEDRATE = homing_feedrate[Z_AXIS] / 40;
-    #else
     int Z_LIFT_FEEDRATE = homing_feedrate[Z_AXIS] / 60;
-    #endif // BLTOUCH
 		bool has_z = is_bed_z_jitter_data_valid(); //checks if we have data from Z calibration (offsets of the Z heiths of the 8 calibration points from the first point)
 		#ifdef SUPPORT_VERBOSITY
 		if (verbosity_level >= 1) {
@@ -5035,13 +5071,15 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			}
 
 			// Move Z up to MESH_HOME_Z_SEARCH.
-#ifndef BLTOUCH
+//#ifndef BLTOUCH
 			if((ix == 0) && (iy == 0)) 
-#endif // BLTOUCH
-      current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
-#ifndef BLTOUCH
+        current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
 			else current_position[Z_AXIS] += 2.f / nMeasPoints; //use relative movement from Z coordinate where PINDa triggered on previous point. This makes calibration faster.
-#endif // BLTOUCH
+//#else
+//			if((ix == 0) && (iy == 0)) 
+//        current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
+//			else current_position[Z_AXIS] += 1.f / nMeasPoints; //use relative movement from Z coordinate where PINDa triggered on previous point. This makes calibration faster.
+//#endif // BLTOUCH
 			float init_z_bckp = current_position[Z_AXIS];
 			plan_buffer_line_curposXYZE(Z_LIFT_FEEDRATE);
 			st_synchronize();

@@ -208,10 +208,17 @@ void checkHitEndstops()
 
 bool endstops_hit_on_purpose()
 {
-  bool hit = endstop_x_hit || endstop_y_hit || endstop_z_hit;
+  bool hit = endstop_x_hit || endstop_y_hit || endstop_z_hit
+#ifdef BLTOUCH
+  || endstop_z_blt_hit
+#endif // BLTOUCH
+  ;
   endstop_x_hit=false;
   endstop_y_hit=false;
   endstop_z_hit=false;
+#ifdef BLTOUCH
+  endstop_z_blt_hit=false;
+#endif // BLTOUCH
   return hit;
 }
 
@@ -592,7 +599,7 @@ FORCE_INLINE void stepper_check_endstops()
 #endif // BLTOUCH
 
       #if defined(Z_MIN_PIN) && (Z_MIN_PIN > -1) && !defined(DEBUG_DISABLE_ZMINLIMIT)
-      if (! check_z_endstop) {
+      if (! check_z_endstop && check_z_blt_endstop) {
         #ifdef TMC2130_SG_HOMING
           // Stall guard homing turned on
 #ifdef TMC2130_STEALTH_Z
@@ -637,7 +644,7 @@ FORCE_INLINE void stepper_check_endstops()
 
   // Supporting stopping on a trigger of the Z-stop induction sensor, not only for the Z-minus movements.
   #if defined(Z_MIN_PIN) && (Z_MIN_PIN > -1) && !defined(DEBUG_DISABLE_ZMINLIMIT)
-  if (check_z_endstop) {
+  if (check_z_endstop  && check_z_blt_endstop) {
       // Check the Z min end-stop no matter what.
       // Good for searching for the center of an induction target.
       #ifdef TMC2130_SG_HOMING

@@ -953,11 +953,15 @@ bool find_bltouch_point_z(float minimum_z, uint8_t n_iter)
     _delay(100);
     servos[0].write(60);
     bool endstops_enabled  = enable_endstops(true);
-    bool endstop_z_enabled = enable_z_blt_endstop(false);
+    bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
 
     // move down until you find the bed
     current_position[Z_AXIS] = minimum_z;
+#ifdef BLTOUCH
+    go_to_current(80/60);
+#else
     go_to_current(homing_feedrate[Z_AXIS]/60);
+#endif // BLTOUCH
 
     // we have to let the planner know where we are right now as it is not where we said to go.
     update_current_position_z();
@@ -968,7 +972,7 @@ bool find_bltouch_point_z(float minimum_z, uint8_t n_iter)
 #endif //TMC2130
     servos[0].write(90);
     enable_endstops(endstops_enabled);
-    enable_z_endstop(endstop_z_enabled);
+    enable_z_blt_endstop(endstop_z_blt_enabled);
 #ifdef TMC2130
 	FORCE_HIGH_POWER_END;
 #endif

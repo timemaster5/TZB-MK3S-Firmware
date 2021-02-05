@@ -16,10 +16,10 @@
 #define BED_Yn (213.4f - BED_ZERO_REF_Y) //205
 
 #ifdef BLTOUCH
-#define BED_X0_BLT (2.f - BED_ZERO_REF_X_BLT) //44.5
-#define BED_Y0_BLT (9.4f - BED_ZERO_REF_Y_BLT) //45.1
-#define BED_Xn_BLT (206.f - BED_ZERO_REF_X_BLT) //161.5
-#define BED_Yn_BLT (213.4f - BED_ZERO_REF_Y_BLT) //168.3
+#define BED_X0_BLT (-10.f - BED_ZERO_REF_X_BLT) // -10 - -42.5 = 32.5
+#define BED_Y0_BLT (9.4f - BED_ZERO_REF_Y_BLT) // 9.4 - -36.1 = 45.5
+#define BED_Xn_BLT (197.5f - BED_ZERO_REF_X_BLT) // 195.5 - -42.5 = 240
+#define BED_Yn_BLT (170.9f - BED_ZERO_REF_Y_BLT) // 170.9 - -36.1 = 207
 #endif // BLTOUCH
 
 #else
@@ -32,8 +32,8 @@
 #endif //not HEATBED_V2
 
 #ifdef BLTOUCH
-#define BED_X_BLT(i, n) ((float)i * (BED_Xn - BED_X0_BLT) / (n - 1) + BED_X0_BLT)
-#define BED_Y_BLT(i, n)  ((float)i * (BED_Yn - BED_Y0_BLT) / (n - 1) + BED_Y0_BLT)
+#define BED_X_BLT(i, n) ((float)i * (BED_Xn_BLT - BED_X0_BLT) / (n - 1) + BED_X0_BLT)
+#define BED_Y_BLT(i, n)  ((float)i * (BED_Yn_BLT - BED_Y0_BLT) / (n - 1) + BED_Y0_BLT)
 #endif // BLTOUCH
 #define BED_X(i, n) ((float)i * (BED_Xn - BED_X0) / (n - 1) + BED_X0)
 #define BED_Y(i, n)  ((float)i * (BED_Yn - BED_Y0) / (n - 1) + BED_Y0)

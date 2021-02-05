@@ -958,7 +958,7 @@ bool find_bltouch_point_z(float minimum_z, uint8_t n_iter)
     // move down until you find the bed
     current_position[Z_AXIS] = minimum_z;
 #ifdef BLTOUCH
-    go_to_current(80/60);
+    go_to_current(HOMING_FEEDRATE_BLT/60);
 #else
     go_to_current(homing_feedrate[Z_AXIS]/60);
 #endif // BLTOUCH

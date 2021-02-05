@@ -2360,11 +2360,7 @@ void homeaxis(int axis, uint8_t cnt)
         plan_set_position_curposXYZE();
         destination[axis] = 1.5 * max_length(axis) * axis_home_dir;
         feedrate = homing_feedrate[axis];
-//#ifdef BLTOUCH
-//        plan_buffer_line_destinationXYZE(100/60);
-//#else
         plan_buffer_line_destinationXYZE(feedrate/60);
-//#endif // BLTOUCH
         st_synchronize();
 #ifdef BLTOUCH
     servos[0].write(90);
@@ -2386,7 +2382,7 @@ void homeaxis(int axis, uint8_t cnt)
         destination[axis] = 2*home_retract_mm(axis) * axis_home_dir;
         feedrate = homing_feedrate[axis]/2 ;
 #ifdef BLTOUCH
-        plan_buffer_line_destinationXYZE(80/60);
+        plan_buffer_line_destinationXYZE(HOMING_FEEDRATE_BLT/60);
 #else
         plan_buffer_line_destinationXYZE(feedrate/60);
 #endif // BLTOUCH
@@ -5071,15 +5067,15 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			}
 
 			// Move Z up to MESH_HOME_Z_SEARCH.
-//#ifndef BLTOUCH
+#ifndef BLTOUCH
 			if((ix == 0) && (iy == 0)) 
         current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
 			else current_position[Z_AXIS] += 2.f / nMeasPoints; //use relative movement from Z coordinate where PINDa triggered on previous point. This makes calibration faster.
-//#else
-//			if((ix == 0) && (iy == 0)) 
-//        current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
-//			else current_position[Z_AXIS] += 1.f / nMeasPoints; //use relative movement from Z coordinate where PINDa triggered on previous point. This makes calibration faster.
-//#endif // BLTOUCH
+#else
+      if((ix == 0) && (iy == 0)) 
+        current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
+			else current_position[Z_AXIS] = MESH_HOME_Z_SEARCH - 2;
+#endif // BLTOUCH
 			float init_z_bckp = current_position[Z_AXIS];
 			plan_buffer_line_curposXYZE(Z_LIFT_FEEDRATE);
 			st_synchronize();

@@ -3,10 +3,6 @@
 
 #define BED_ZERO_REF_X (- 22.f + X_PROBE_OFFSET_FROM_EXTRUDER) // -22 + 23 = 1
 #define BED_ZERO_REF_Y (- 0.6f + Y_PROBE_OFFSET_FROM_EXTRUDER + 4.f) // -0.6 + 5 + 4 = 8.4
-#ifdef BLTOUCH
-#define BED_ZERO_REF_X_BLT (- 22.f + X_PROBE_OFFSET_FROM_EXTRUDER_BLT) // -22 + -20.5 = -42.5
-#define BED_ZERO_REF_Y_BLT (- 0.6f + Y_PROBE_OFFSET_FROM_EXTRUDER_BLT + 4.f) // -6 + -34.1 + 4 = -36.1
-#endif // BLTOUCH
 
 #ifdef HEATBED_V2
 
@@ -16,10 +12,10 @@
 #define BED_Yn (213.4f - BED_ZERO_REF_Y) //205
 
 #ifdef BLTOUCH
-#define BED_X0_BLT (-10.f - BED_ZERO_REF_X_BLT) // -10 - -42.5 = 32.5
-#define BED_Y0_BLT (9.4f - BED_ZERO_REF_Y_BLT) // 9.4 - -36.1 = 45.5
-#define BED_Xn_BLT (197.5f - BED_ZERO_REF_X_BLT) // 195.5 - -42.5 = 240
-#define BED_Yn_BLT (170.9f - BED_ZERO_REF_Y_BLT) // 170.9 - -36.1 = 207
+#define BED_X0_BLT (1.f - X_PROBE_OFFSET_FROM_EXTRUDER_BLT) // 21.5
+#define BED_Y0_BLT (9.4f - Y_PROBE_OFFSET_FROM_EXTRUDER_BLT) // 43.5
+#define BED_Xn_BLT (X_MAX_POS - 1.f) // 254
+#define BED_Yn_BLT (Y_MAX_POS - 1.5f) // 211
 #endif // BLTOUCH
 
 #else
@@ -162,7 +158,6 @@ inline bool world2machine_clamp(float &x, float &y)
 }
 
 extern bool find_bed_induction_sensor_point_z(float minimum_z = -10.f, uint8_t n_iter = 3, int verbosity_level = 0);
-extern bool find_bltouch_point_z(float minimum_z, uint8_t n_iter = 1);
 extern bool find_bed_induction_sensor_point_xy(int verbosity_level = 0);
 extern void go_home_with_z_lift();
 

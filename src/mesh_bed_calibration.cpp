@@ -942,54 +942,6 @@ static inline void update_current_position_z()
       plan_set_z_position(current_position[Z_AXIS]);
 }
 
-#ifdef BLTOUCH
-bool find_bltouch_point_z(float minimum_z, uint8_t n_iter)
-{
-#ifdef TMC2130
-	FORCE_HIGH_POWER_START;
-#endif
-    //Setup BLTOUCH for probe
-    servos[0].write(10);
-    _delay(100);
-    servos[0].write(60);
-    bool endstops_enabled  = enable_endstops(true);
-    bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
-
-    // move down until you find the bed
-    current_position[Z_AXIS] = minimum_z;
-#ifdef BLTOUCH
-    go_to_current(HOMING_FEEDRATE_BLT/60);
-#else
-    go_to_current(homing_feedrate[Z_AXIS]/60);
-#endif // BLTOUCH
-
-    // we have to let the planner know where we are right now as it is not where we said to go.
-    update_current_position_z();
-
-    if (! endstop_z_blt_hit_on_purpose()) goto error;
-#ifdef TMC2130
-	if (READ(Z_TMC2130_DIAG) != 0) goto error; //crash Z detected
-#endif //TMC2130
-    servos[0].write(90);
-    enable_endstops(endstops_enabled);
-    enable_z_blt_endstop(endstop_z_blt_enabled);
-#ifdef TMC2130
-	FORCE_HIGH_POWER_END;
-#endif
-	return true;
-
-error:
-    servos[0].write(160);
-    servos[0].write(90);
-    enable_endstops(endstops_enabled);
-    enable_z_endstop(enable_z_blt_endstop);
-#ifdef TMC2130
-	FORCE_HIGH_POWER_END;
-#endif
-	return false;
-}
-#endif // BLTOUCH
-
 // At the current position, find the Z stop.
 
 inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, int
@@ -998,6 +950,7 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 #endif //SUPPORT_VERBOSITY
         )
 {
+    // uint8_t loop;
 	bool high_deviation_occured = false; 
     bedPWMDisabled = 1;
 #ifdef TMC2130
@@ -1007,17 +960,41 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 	#ifdef SUPPORT_VERBOSITY
     if(verbosity_level >= 10) SERIAL_ECHOLNPGM("find bed induction sensor point z");
 	#endif // SUPPORT_VERBOSITY
+
+#ifdef BLTOUCH
+    //Setup BLTOUCH for probe
+    //for (loop = 0; loop < 255; ++loop) servos[0].write(10);
+    //for (loop = 0; loop < 100; ++loop) servos[0].write(60);
+    servos[0].write(10);
+    servos[0].write(10);
+    _delay(100);
+    servos[0].write(60);
+    servos[0].write(60);
+#endif // BLTOUCH
+
 	bool endstops_enabled  = enable_endstops(true);
+#ifdef BLTOUCH
+    bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
+#else
     bool endstop_z_enabled = enable_z_endstop(false);
+#endif // BLTOUCH
     float z = 0.f;
+#ifdef BLTOUCH
+    endstop_z_blt_hit_on_purpose();
+#else
     endstop_z_hit_on_purpose();
+#endif // BLTOUCH
 
     // move down until you find the bed
     current_position[Z_AXIS] = minimum_z;
     go_to_current(homing_feedrate[Z_AXIS]/60);
     // we have to let the planner know where we are right now as it is not where we said to go.
     update_current_position_z();
+#ifdef BLTOUCH
+    if (! endstop_z_blt_hit_on_purpose())
+#else
     if (! endstop_z_hit_on_purpose())
+#endif // BLTOUCH
 	{
 		//printf_P(PSTR("endstop not hit 1, current_pos[Z]: %f \n"), current_position[Z_AXIS]);
 		goto error;
@@ -1031,30 +1008,53 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 #endif //TMC2130
     for (uint8_t i = 0; i < n_iter; ++ i)
 	{
-		
+  
 		current_position[Z_AXIS] += high_deviation_occured ? 0.5 : 0.2;
 		float z_bckp = current_position[Z_AXIS];
 		go_to_current(homing_feedrate[Z_AXIS]/60);
+        servos[0].write(10);
+        servos[0].write(10);
+        servos[0].write(60);
+        servos[0].write(60);
 		// Move back down slowly to find bed.
         current_position[Z_AXIS] = minimum_z;
 		//printf_P(PSTR("init Z = %f, min_z = %f, i = %d\n"), z_bckp, minimum_z, i);
+#ifdef BLTOUCH
+        go_to_current((homing_feedrate[Z_AXIS]/4)/60);
+#else
         go_to_current(homing_feedrate[Z_AXIS]/(4*60));
+#endif // BLTOUCH
         // we have to let the planner know where we are right now as it is not where we said to go.
         update_current_position_z();
 		//printf_P(PSTR("Zs: %f, Z: %f, delta Z: %f"), z_bckp, current_position[Z_AXIS], (z_bckp - current_position[Z_AXIS]));
 		if (abs(current_position[Z_AXIS] - z_bckp) < 0.025) {
 			//printf_P(PSTR("PINDA triggered immediately, move Z higher and repeat measurement\n")); 
 			current_position[Z_AXIS] += 0.5;
+#ifdef BLTOUCH
+            go_to_current((homing_feedrate[Z_AXIS]/2)/60);
+#else
 			go_to_current(homing_feedrate[Z_AXIS]/60);
+#endif // BLTOUCH
 			current_position[Z_AXIS] = minimum_z;
+#ifdef BLTOUCH
+            servos[0].write(10);
+            servos[0].write(10);
+            servos[0].write(60);
+            servos[0].write(60);
+            go_to_current((homing_feedrate[Z_AXIS]/4)/60);
+#else
             go_to_current(homing_feedrate[Z_AXIS]/(4*60));
+#endif // BLTOUCH
             // we have to let the planner know where we are right now as it is not where we said to go.
 			update_current_position_z();
 		}
 
 
-
+#ifdef BLTOUCH
+		if (!endstop_z_blt_hit_on_purpose())
+#else
 		if (!endstop_z_hit_on_purpose())
+#endif // BLTOUCH
 		{
 			//printf_P(PSTR("i = %d, endstop not hit 2, current_pos[Z]: %f \n"), i, current_position[Z_AXIS]);
 			goto error;
@@ -1091,9 +1091,17 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
     if (n_iter > 1)
         current_position[Z_AXIS] /= float(n_iter);
 
+#ifdef BLTOUCH
+        servos[0].write(90);
+        servos[0].write(90);
+#endif // BLTOUCH
 
     enable_endstops(endstops_enabled);
+#ifdef BLTOUCH
+    enable_z_blt_endstop(endstop_z_blt_enabled);
+#else
     enable_z_endstop(endstop_z_enabled);
+#endif // BLTOUCH
 //    SERIAL_ECHOLNPGM("find_bed_induction_sensor_point_z 3");
 #ifdef TMC2130
 	FORCE_HIGH_POWER_END;
@@ -1104,7 +1112,15 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 error:
 //    SERIAL_ECHOLNPGM("find_bed_induction_sensor_point_z 4");
     enable_endstops(endstops_enabled);
+#ifdef BLTOUCH
+    servos[0].write(160);
+    servos[0].write(160);
+    servos[0].write(90);
+    servos[0].write(90);
+    enable_z_blt_endstop(endstop_z_blt_enabled);
+#else
     enable_z_endstop(endstop_z_enabled);
+#endif // BLTOUCH
 #ifdef TMC2130
 	FORCE_HIGH_POWER_END;
 #endif

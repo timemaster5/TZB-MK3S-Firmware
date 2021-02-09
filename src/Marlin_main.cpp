@@ -2353,7 +2353,6 @@ void homeaxis(int axis, uint8_t cnt)
       _delay(100);
       servos[0].write(60);
       bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
-      bool endstop_z_disable = enable_z_endstop(true);
 #endif // BLTOUCH
         int axis_home_dir = home_dir(axis);
         current_position[axis] = 0;
@@ -2362,27 +2361,23 @@ void homeaxis(int axis, uint8_t cnt)
         feedrate = homing_feedrate[axis];
         plan_buffer_line_destinationXYZE(feedrate/60);
         st_synchronize();
-#ifdef BLTOUCH
-    servos[0].write(90);
-#endif // BLTOUCH
 #ifdef TMC2130
         check_Z_crash();
 #endif //TMC2130
-#ifdef BLTOUCH
-      //Setup BLTOUCH for probe
-      servos[0].write(10);
-      _delay(100);
-      servos[0].write(60);
-#endif // BLTOUCH
         current_position[axis] = 0;
         plan_set_position_curposXYZE();
         destination[axis] = -home_retract_mm(axis) * axis_home_dir;
         plan_buffer_line_destinationXYZE(feedrate/60);
         st_synchronize();
+#ifdef BLTOUCH
+      //Setup BLTOUCH for probe
+      servos[0].write(10);
+      servos[0].write(60);
+#endif // BLTOUCH
         destination[axis] = 2*home_retract_mm(axis) * axis_home_dir;
         feedrate = homing_feedrate[axis]/2 ;
 #ifdef BLTOUCH
-        plan_buffer_line_destinationXYZE(HOMING_FEEDRATE_BLT/60);
+        plan_buffer_line_destinationXYZE((feedrate/4)/60);
 #else
         plan_buffer_line_destinationXYZE(feedrate/60);
 #endif // BLTOUCH
@@ -2390,7 +2385,6 @@ void homeaxis(int axis, uint8_t cnt)
 #ifdef BLTOUCH
     servos[0].write(90);
     enable_z_blt_endstop(endstop_z_blt_enabled);
-    enable_z_endstop(endstop_z_disable);
 #endif // BLTOUCH        
 #ifdef TMC2130
         check_Z_crash();
@@ -4952,11 +4946,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			nMeasPoints = eeprom_read_byte((uint8_t*)EEPROM_MBL_POINTS_NR);
 		}
 
-#ifdef BLTOUCH
-    uint8_t nProbeRetry = 1; // BLTOUCH Default to 1
-#else
 		uint8_t nProbeRetry = 3;
-#endif // BLTOUCH
 		if (code_seen('R')) {
 			nProbeRetry = code_value_uint8();
 			if (nProbeRetry > 10) {
@@ -4966,9 +4956,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 		else {
 			nProbeRetry = eeprom_read_byte((uint8_t*)EEPROM_MBL_PROBE_NR);
 		}
-#ifdef BLTOUCH 
-		bool magnet_elimination = false;
-#else
+#ifndef BLTOUCH 
 		bool magnet_elimination = (eeprom_read_byte((uint8_t*)EEPROM_MBL_MAGNET_ELIMINATION) > 0);
 #endif // BLTOUCH
 		
@@ -5073,8 +5061,8 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			else current_position[Z_AXIS] += 2.f / nMeasPoints; //use relative movement from Z coordinate where PINDa triggered on previous point. This makes calibration faster.
 #else
       if((ix == 0) && (iy == 0)) 
-        current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
-			else current_position[Z_AXIS] = MESH_HOME_Z_SEARCH - 2;
+        current_position[Z_AXIS] = MESH_HOME_Z_SEARCH + 2; // More time for PIN on first one
+      else current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
 #endif // BLTOUCH
 			float init_z_bckp = current_position[Z_AXIS];
 			plan_buffer_line_curposXYZE(Z_LIFT_FEEDRATE);
@@ -5108,11 +5096,8 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 
 			// Go down until endstop is hit
 			const float Z_CALIBRATION_THRESHOLD = 1.f;
-#ifdef BLTOUCH
-			if (!find_bltouch_point_z((has_z && mesh_point > 0) ? z0 - Z_CALIBRATION_THRESHOLD : -10.f, nProbeRetry)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we dont have data max difference is 10mm from initial point  
-#else
 			if (!find_bed_induction_sensor_point_z((has_z && mesh_point > 0) ? z0 - Z_CALIBRATION_THRESHOLD : -10.f, nProbeRetry)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we dont have data max difference is 10mm from initial point  
-#endif // BLTOUCH
+
 				printf_P(_T(MSG_BED_LEVELING_FAILED_POINT_LOW));
 				break;
 			}
@@ -5121,11 +5106,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 				current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
 				plan_buffer_line_curposXYZE(Z_LIFT_FEEDRATE);
 				st_synchronize();
-#ifdef BLTOUCH
-        if (!find_bltouch_point_z((has_z && mesh_point > 0) ? z0 - Z_CALIBRATION_THRESHOLD : -10.f, nProbeRetry)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we dont have data max difference is 10mm from initial point  
-#else
 				if (!find_bed_induction_sensor_point_z((has_z && mesh_point > 0) ? z0 - Z_CALIBRATION_THRESHOLD : -10.f, nProbeRetry)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we dont have data max difference is 10mm from initial point  
-#endif // BLTOUCH
 					printf_P(_T(MSG_BED_LEVELING_FAILED_POINT_LOW));
 					break;
 				}
@@ -6010,265 +5991,117 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 #endif
 
 
-#ifdef ENABLE_AUTO_BED_LEVELING
-#ifdef Z_PROBE_REPEATABILITY_TEST 
+#ifdef Z_PROBE_REPEATABILITY_TEST
+#ifdef BLTOUCH 
 
     /*!
-	### M48 - Z-Probe repeatability measurement function <a href="https://reprap.org/wiki/G-code#M48:_Measure_Z-Probe_repeatability">M48: Measure Z-Probe repeatability</a>
-    
-     This function assumes the bed has been homed.  Specifically, that a G28 command as been issued prior to invoking the M48 Z-Probe repeatability measurement function. Any information generated by a prior G29 Bed leveling command will be lost and needs to be regenerated.
-     
+	### M48 - Z-Probe repeatability measurement function </a>
+         
      The number of samples will default to 10 if not specified.  You can use upper or lower case letters for any of the options EXCEPT n.  n must be in lower case because Marlin uses a capital N for its communication protocol and will get horribly confused if you send it a capital N.
      @todo Why would you check for both uppercase and lowercase? Seems wasteful.
 	 
      #### Usage
      
-	     M48 [ n | X | Y | V | L ]
+	     M48 [ n | X | Y ]
      
      #### Parameters
-       - `n` - Number of samples. Valid values 4-50
+     - `n` - Number of samples. Valid values 4-10
 	   - `X` - X position for samples
 	   - `Y` - Y position for samples
-	   - `V` - Verbose level. Valid values 1-4
-	   - `L` - Legs of movementprior to doing probe. Valid values 1-15
     */
+   /*
     case 48: // M48 Z-Probe repeatability
-        {
-            #if Z_MIN_PIN == -1
-            #error "You must have a Z_MIN endstop in order to enable calculation of Z-Probe repeatability."
-            #endif
-
-	double sum=0.0; 
-	double mean=0.0; 
-	double sigma=0.0;
-	double sample_set[50];
-	int verbose_level=1, n=0, j, n_samples = 10, n_legs=0;
-	double X_current, Y_current, Z_current;
-	double X_probe_location, Y_probe_location, Z_start_location, ext_position;
-	
-	if (code_seen('V') || code_seen('v')) {
-        	verbose_level = code_value();
-		if (verbose_level<0 || verbose_level>4 ) {
-			SERIAL_PROTOCOLPGM("?Verbose Level not plausable.\n");
-			goto Sigma_Exit;
-		}
-	}
-
-	if (verbose_level > 0)   {
-		SERIAL_PROTOCOLPGM("M48 Z-Probe Repeatability test.   Version 2.00\n");
-		SERIAL_PROTOCOLPGM("Full support at: http://3dprintboard.com/forum.php\n");
-	}
-
-	if (code_seen('n')) {
-        	n_samples = code_value();
-		if (n_samples<4 || n_samples>50 ) {
-			SERIAL_PROTOCOLPGM("?Specified sample size not plausable.\n");
-			goto Sigma_Exit;
-		}
-	}
-
-	X_current = X_probe_location = st_get_position_mm(X_AXIS);
-	Y_current = Y_probe_location = st_get_position_mm(Y_AXIS);
-	Z_current = st_get_position_mm(Z_AXIS);
-	Z_start_location = st_get_position_mm(Z_AXIS) + Z_RAISE_BEFORE_PROBING;
-	ext_position	 = st_get_position_mm(E_AXIS);
-
-	if (code_seen('X') || code_seen('x') ) {
-        	X_probe_location = code_value() -  X_PROBE_OFFSET_FROM_EXTRUDER;
-		if (X_probe_location<X_MIN_POS || X_probe_location>X_MAX_POS ) {
-			SERIAL_PROTOCOLPGM("?Specified X position out of range.\n");
-			goto Sigma_Exit;
-		}
-	}
-
-	if (code_seen('Y') || code_seen('y') ) {
-        	Y_probe_location = code_value() -  Y_PROBE_OFFSET_FROM_EXTRUDER;
-		if (Y_probe_location<Y_MIN_POS || Y_probe_location>Y_MAX_POS ) {
-			SERIAL_PROTOCOLPGM("?Specified Y position out of range.\n");
-			goto Sigma_Exit;
-		}
-	}
-
-	if (code_seen('L') || code_seen('l') ) {
-        	n_legs = code_value();
-		if ( n_legs==1 ) 
-			n_legs = 2;
-		if ( n_legs<0 || n_legs>15 ) {
-			SERIAL_PROTOCOLPGM("?Specified number of legs in movement not plausable.\n");
-			goto Sigma_Exit;
-		}
-	}
-
-//
-// Do all the preliminary setup work.   First raise the probe.
-//
-
-        st_synchronize();
-        plan_bed_level_matrix.set_to_identity();
-	plan_buffer_line( X_current, Y_current, Z_start_location,
-			ext_position,
-    			homing_feedrate[Z_AXIS]/60,
-			active_extruder);
-        st_synchronize();
-
-//
-// Now get everything to the specified probe point So we can safely do a probe to
-// get us close to the bed.  If the Z-Axis is far from the bed, we don't want to 
-// use that as a starting point for each probe.
-//
-	if (verbose_level > 2) 
-		SERIAL_PROTOCOL("Positioning probe for the test.\n");
-
-	plan_buffer_line( X_probe_location, Y_probe_location, Z_start_location,
-			ext_position,
-    			homing_feedrate[X_AXIS]/60,
-			active_extruder);
-        st_synchronize();
-
-	current_position[X_AXIS] = X_current = st_get_position_mm(X_AXIS);
-	current_position[Y_AXIS] = Y_current = st_get_position_mm(Y_AXIS);
-	current_position[Z_AXIS] = Z_current = st_get_position_mm(Z_AXIS);
-	current_position[E_AXIS] = ext_position = st_get_position_mm(E_AXIS);
-
-// 
-// OK, do the inital probe to get us close to the bed.
-// Then retrace the right amount and use that in subsequent probes
-//
-
-	int l_feedmultiply = setup_for_endstop_move();
-	run_z_probe();
-
-	current_position[Z_AXIS] = Z_current = st_get_position_mm(Z_AXIS);
-	Z_start_location = st_get_position_mm(Z_AXIS) + Z_RAISE_BEFORE_PROBING;
-
-	plan_buffer_line( X_probe_location, Y_probe_location, Z_start_location,
-			ext_position,
-    			homing_feedrate[X_AXIS]/60,
-			active_extruder);
-        st_synchronize();
-	current_position[Z_AXIS] = Z_current = st_get_position_mm(Z_AXIS);
-
-        for( n=0; n<n_samples; n++) {
-
-		do_blocking_move_to( X_probe_location, Y_probe_location, Z_start_location); // Make sure we are at the probe location
-
-		if ( n_legs)  {
-		double radius=0.0, theta=0.0, x_sweep, y_sweep;
-		int rotational_direction, l;
-
-			rotational_direction = (unsigned long) _millis() & 0x0001;			// clockwise or counter clockwise
-			radius = (unsigned long) _millis() % (long) (X_MAX_LENGTH/4); 			// limit how far out to go 
-			theta = (float) ((unsigned long) _millis() % (long) 360) / (360./(2*3.1415926));	// turn into radians
-
-//SERIAL_ECHOPAIR("starting radius: ",radius);
-//SERIAL_ECHOPAIR("   theta: ",theta);
-//SERIAL_ECHOPAIR("   direction: ",rotational_direction);
-//SERIAL_PROTOCOLLNPGM("");
-
-			for( l=0; l<n_legs-1; l++) {
-				if (rotational_direction==1)
-					theta += (float) ((unsigned long) _millis() % (long) 20) / (360.0/(2*3.1415926)); // turn into radians
-				else
-					theta -= (float) ((unsigned long) _millis() % (long) 20) / (360.0/(2*3.1415926)); // turn into radians
-
-				radius += (float) ( ((long) ((unsigned long) _millis() % (long) 10)) - 5);
-				if ( radius<0.0 )
-					radius = -radius;
-
-				X_current = X_probe_location + cos(theta) * radius;
-				Y_current = Y_probe_location + sin(theta) * radius;
-
-				if ( X_current<X_MIN_POS)		// Make sure our X & Y are sane
-					 X_current = X_MIN_POS;
-				if ( X_current>X_MAX_POS)
-					 X_current = X_MAX_POS;
-
-				if ( Y_current<Y_MIN_POS)		// Make sure our X & Y are sane
-					 Y_current = Y_MIN_POS;
-				if ( Y_current>Y_MAX_POS)
-					 Y_current = Y_MAX_POS;
-
-				if (verbose_level>3 ) {
-					SERIAL_ECHOPAIR("x: ", X_current);
-					SERIAL_ECHOPAIR("y: ", Y_current);
-					SERIAL_PROTOCOLLNPGM("");
-				}
-
-				do_blocking_move_to( X_current, Y_current, Z_current );
-			}
-			do_blocking_move_to( X_probe_location, Y_probe_location, Z_start_location); // Go back to the probe location
-		}
-
-		int l_feedmultiply = setup_for_endstop_move();
-                run_z_probe();
-
-		sample_set[n] = current_position[Z_AXIS];
-
-//
-// Get the current mean for the data points we have so far
-//
-		sum=0.0; 
-		for( j=0; j<=n; j++) {
-			sum = sum + sample_set[j];
-		}
-		mean = sum / (double (n+1));
-//
-// Now, use that mean to calculate the standard deviation for the
-// data points we have so far
-//
-
-		sum=0.0; 
-		for( j=0; j<=n; j++) {
-			sum = sum + (sample_set[j]-mean) * (sample_set[j]-mean);
-		}
-		sigma = sqrt( sum / (double (n+1)) );
-
-		if (verbose_level > 1) {
-			SERIAL_PROTOCOL(n+1);
-			SERIAL_PROTOCOL(" of ");
-			SERIAL_PROTOCOL(n_samples);
-			SERIAL_PROTOCOLPGM("   z: ");
-			SERIAL_PROTOCOL_F(current_position[Z_AXIS], 6);
-		}
-
-		if (verbose_level > 2) {
-			SERIAL_PROTOCOL(" mean: ");
-			SERIAL_PROTOCOL_F(mean,6);
-
-			SERIAL_PROTOCOL("   sigma: ");
-			SERIAL_PROTOCOL_F(sigma,6);
-		}
-
-		if (verbose_level > 0) 
-			SERIAL_PROTOCOLPGM("\n");
-
-		plan_buffer_line( X_probe_location, Y_probe_location, Z_start_location, 
-				  current_position[E_AXIS], homing_feedrate[Z_AXIS]/60, active_extruder);
-        	st_synchronize();
-
-	}
-
-	_delay(1000);
-
-    clean_up_after_endstop_move(l_feedmultiply);
-
-//  enable_endstops(true);
-
-	if (verbose_level > 0) {
-		SERIAL_PROTOCOLPGM("Mean: ");
-		SERIAL_PROTOCOL_F(mean, 6);
-		SERIAL_PROTOCOLPGM("\n");
-	}
-
-SERIAL_PROTOCOLPGM("Standard Deviation: ");
-SERIAL_PROTOCOL_F(sigma, 6);
-SERIAL_PROTOCOLPGM("\n\n");
-
-Sigma_Exit:
+    {
+      // Firstly check if we know where we are
+      if (!(axis_known_position[X_AXIS] && axis_known_position[Y_AXIS] && axis_known_position[Z_AXIS])) {
+        // We don't know where we are! HOME!
+        // Push the commands to the front of the message queue in the reverse order!
+        // There shall be always enough space reserved for these commands.
+        repeatcommand_front(); // repeat G80 with all its parameters
+        enquecommand_front_P((PSTR("G28 W0")));
         break;
-	}
-#endif		// Z_PROBE_REPEATABILITY_TEST 
-#endif		// ENABLE_AUTO_BED_LEVELING
+      }
+
+      float sum = 0.f;
+      float max = 0.f;
+      float min = 10.f;
+      uint8_t n = 10;
+      uint8_t nl;
+
+      SERIAL_ECHOLNPGM("M48 Z-Probe Repeatability test.");
+
+      if (code_seen('n')) {
+        n = code_value();
+        if (n < 4 || n > 10 ) {
+          SERIAL_ECHOLNPGM("?Specified sample size not plausable.");
+          return;
+        }
+      }
+
+      if (code_seen('X') || code_seen('x') ) {
+        if (code_value() + X_PROBE_OFFSET_FROM_EXTRUDER_BLT >= 0 && code_value() + X_PROBE_OFFSET_FROM_EXTRUDER_BLT <= X_MAX_POS)
+          current_position[X_AXIS] = code_value() + X_PROBE_OFFSET_FROM_EXTRUDER_BLT;
+        else {
+          SERIAL_ECHOLNPGM("?Specified X position out of range.");
+          return;
+        }
+      }
+
+      if (code_seen('Y') || code_seen('y') ) {
+        if (code_value() + Y_PROBE_OFFSET_FROM_EXTRUDER_BLT >= 0 && code_value() + Y_PROBE_OFFSET_FROM_EXTRUDER_BLT <= Y_MAX_POS)
+          current_position[Y_AXIS] = code_value() + Y_PROBE_OFFSET_FROM_EXTRUDER_BLT;
+        else {
+          SERIAL_ECHOLNPGM("?Specified X position out of range.");
+          return;
+        }
+      }
+      current_position[Z_AXIS] = MESH_HOME_Z_SEARCH + 2.f;
+
+      // Move to desired probe location
+      plan_buffer_line_curposXYZE(homing_feedrate[X_AXIS] / 20);
+      st_synchronize();
+
+      for (nl = 0;nl < n; nl++)
+      {
+        // Move Z to MESH homing height
+        current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
+        plan_buffer_line_curposXYZE((homing_feedrate[Z_AXIS]/4) / 60);
+        st_synchronize();
+
+        if (! find_bed_induction_sensor_point_z(- 1.f, 1))
+        {
+          printf_P(_T(MSG_BED_LEVELING_FAILED_POINT_LOW));
+          break;
+        }
+
+        sum += current_position[Z_AXIS];
+        if (current_position[Z_AXIS] > max) max = current_position[Z_AXIS];
+        if (current_position[Z_AXIS] < min) min = current_position[Z_AXIS];
+      }
+
+      if (nl == n)
+      {
+        SERIAL_ECHOPGM("Min: ");
+        MYSERIAL.print(min, 3);
+        SERIAL_ECHOLN();
+        SERIAL_ECHOPGM("Max: ");
+        MYSERIAL.print(max, 3);
+        SERIAL_ECHOLN();
+        SERIAL_ECHOPGM("Deviation: ");
+        MYSERIAL.print((max - min), 3);
+        SERIAL_ECHOLN();
+        SERIAL_ECHOPGM("Probe average: ");
+        MYSERIAL.print(sum/n, 3);
+        SERIAL_ECHOLN();
+      }
+
+      // Move Z to MESH homing height
+      current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
+      plan_buffer_line_curposXYZE(homing_feedrate[Z_AXIS] / 60);
+      st_synchronize();
+}*/
+#endif // BLTOUCH
+#endif		// Z_PROBE_REPEATABILITY_TEST
 
 	/*!
 	### M73 - Set/get print progress <a href="https://reprap.org/wiki/G-code#M73:_Set.2FGet_build_percentage">M73: Set/Get build percentage</a>

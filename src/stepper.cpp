@@ -259,6 +259,7 @@ bool enable_z_blt_endstop(bool check)
 	bool old = check_z_blt_endstop;
 	check_z_blt_endstop = check;
 	endstop_z_blt_hit = false;
+  enable_z_endstop(!check);
 	return old;
 }
 #endif // BLTOUCH

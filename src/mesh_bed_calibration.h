@@ -14,7 +14,7 @@
 #ifdef BLTOUCH
 #define BED_X0_BLT (1.f - X_PROBE_OFFSET_FROM_EXTRUDER_BLT) // 21.5
 #define BED_Y0_BLT (9.4f - Y_PROBE_OFFSET_FROM_EXTRUDER_BLT) // 43.5
-#define BED_Xn_BLT (X_MAX_POS - 1.f) // 254
+#define BED_Xn_BLT (X_MAX_POS - 4.f) // 251
 #define BED_Yn_BLT (Y_MAX_POS - 1.5f) // 211
 #endif // BLTOUCH
 
@@ -63,6 +63,10 @@ extern void world2machine_revert_to_uncorrected();
 extern void world2machine_initialize();
 extern void world2machine_read_valid(float vec_x[2], float vec_y[2], float cntr[2]);
 extern void world2machine_update_current();
+#ifdef BLTOUCH
+extern void deployBLT();
+extern void stowBLT();
+#endif // BLTOUCH
 
 inline void world2machine(float &x, float &y)
 {

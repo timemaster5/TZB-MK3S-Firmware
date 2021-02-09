@@ -950,9 +950,10 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 #endif //SUPPORT_VERBOSITY
         )
 {
-    // uint8_t loop;
-	bool high_deviation_occured = false; 
+	bool high_deviation_occured = false;
+#ifndef BLTOUCH
     bedPWMDisabled = 1;
+#endif // BLTOUCH
 #ifdef TMC2130
 	FORCE_HIGH_POWER_START;
 #endif
@@ -961,40 +962,22 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
     if(verbosity_level >= 10) SERIAL_ECHOLNPGM("find bed induction sensor point z");
 	#endif // SUPPORT_VERBOSITY
 
-#ifdef BLTOUCH
-    //Setup BLTOUCH for probe
-    //for (loop = 0; loop < 255; ++loop) servos[0].write(10);
-    //for (loop = 0; loop < 100; ++loop) servos[0].write(60);
-    servos[0].write(10);
-    servos[0].write(10);
-    _delay(100);
-    servos[0].write(60);
-    servos[0].write(60);
-#endif // BLTOUCH
-
 	bool endstops_enabled  = enable_endstops(true);
 #ifdef BLTOUCH
     bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
+    endstop_z_blt_hit_on_purpose();
+    float z = 0.f;
 #else
     bool endstop_z_enabled = enable_z_endstop(false);
-#endif // BLTOUCH
-    float z = 0.f;
-#ifdef BLTOUCH
-    endstop_z_blt_hit_on_purpose();
-#else
     endstop_z_hit_on_purpose();
-#endif // BLTOUCH
 
     // move down until you find the bed
     current_position[Z_AXIS] = minimum_z;
     go_to_current(homing_feedrate[Z_AXIS]/60);
     // we have to let the planner know where we are right now as it is not where we said to go.
     update_current_position_z();
-#ifdef BLTOUCH
-    if (! endstop_z_blt_hit_on_purpose())
-#else
     if (! endstop_z_hit_on_purpose())
-#endif // BLTOUCH
+
 	{
 		//printf_P(PSTR("endstop not hit 1, current_pos[Z]: %f \n"), current_position[Z_AXIS]);
 		goto error;
@@ -1006,21 +989,24 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 		goto error; //crash Z detected
 	}
 #endif //TMC2130
+#endif // BLTOUCH
     for (uint8_t i = 0; i < n_iter; ++ i)
 	{
-  
+#ifdef BLTOUCH
+        current_position[Z_AXIS] += 0.5f;
+#else
 		current_position[Z_AXIS] += high_deviation_occured ? 0.5 : 0.2;
+#endif // BLTOUCH
 		float z_bckp = current_position[Z_AXIS];
 		go_to_current(homing_feedrate[Z_AXIS]/60);
-        servos[0].write(10);
-        servos[0].write(10);
-        servos[0].write(60);
-        servos[0].write(60);
+#ifdef BLTOUCH
+        deployBLT();
+#endif // BLTOUCH
 		// Move back down slowly to find bed.
         current_position[Z_AXIS] = minimum_z;
 		//printf_P(PSTR("init Z = %f, min_z = %f, i = %d\n"), z_bckp, minimum_z, i);
 #ifdef BLTOUCH
-        go_to_current((homing_feedrate[Z_AXIS]/4)/60);
+        go_to_current((homing_feedrate[Z_AXIS]/8)/60);
 #else
         go_to_current(homing_feedrate[Z_AXIS]/(4*60));
 #endif // BLTOUCH
@@ -1029,19 +1015,19 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 		//printf_P(PSTR("Zs: %f, Z: %f, delta Z: %f"), z_bckp, current_position[Z_AXIS], (z_bckp - current_position[Z_AXIS]));
 		if (abs(current_position[Z_AXIS] - z_bckp) < 0.025) {
 			//printf_P(PSTR("PINDA triggered immediately, move Z higher and repeat measurement\n")); 
+#ifndef BLTOUCH
 			current_position[Z_AXIS] += 0.5;
+#endif // BLTOUCH
 #ifdef BLTOUCH
+            current_position[Z_AXIS] += 1.f;
             go_to_current((homing_feedrate[Z_AXIS]/2)/60);
 #else
 			go_to_current(homing_feedrate[Z_AXIS]/60);
 #endif // BLTOUCH
 			current_position[Z_AXIS] = minimum_z;
 #ifdef BLTOUCH
-            servos[0].write(10);
-            servos[0].write(10);
-            servos[0].write(60);
-            servos[0].write(60);
-            go_to_current((homing_feedrate[Z_AXIS]/4)/60);
+            deployBLT();
+            go_to_current((homing_feedrate[Z_AXIS]/8)/60);
 #else
             go_to_current(homing_feedrate[Z_AXIS]/(4*60));
 #endif // BLTOUCH
@@ -1068,10 +1054,10 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 //        SERIAL_ECHOPGM("Bed find_bed_induction_sensor_point_z low, height: ");
 //        MYSERIAL.print(current_position[Z_AXIS], 5);
 //        SERIAL_ECHOLNPGM("");
-		float dz = i?abs(current_position[Z_AXIS] - (z / i)):0;
         z += current_position[Z_AXIS];
-		//printf_P(PSTR("Z[%d] = %d, dz=%d\n"), i, (int)(current_position[Z_AXIS] * 1000), (int)(dz * 1000));
-		//printf_P(PSTR("Z- measurement deviation from avg value %f um\n"), dz);
+#ifndef BLTOUCH
+        float dz = i?abs(current_position[Z_AXIS] - (z / i)):0;
+        printf_P(PSTR("Z- measurement deviation from avg value %f um\n"), dz);
 		if (dz > 0.05) { //deviation > 50um
 			if (high_deviation_occured == false) { //first occurence may be caused in some cases by mechanic resonance probably especially if printer is placed on unstable surface 
 				//printf_P(PSTR("high dev. first occurence\n"));
@@ -1085,6 +1071,7 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 				goto error;
 			}
 		}
+#endif // BLTOUCH
 		//printf_P(PSTR("PINDA triggered at %f\n"), current_position[Z_AXIS]);
     }
     current_position[Z_AXIS] = z;
@@ -1092,8 +1079,7 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
         current_position[Z_AXIS] /= float(n_iter);
 
 #ifdef BLTOUCH
-        servos[0].write(90);
-        servos[0].write(90);
+        stowBLT();
 #endif // BLTOUCH
 
     enable_endstops(endstops_enabled);
@@ -1106,7 +1092,9 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 #ifdef TMC2130
 	FORCE_HIGH_POWER_END;
 #endif
+#ifndef BLTOUCH
     bedPWMDisabled = 0;
+#endif // BLTOUCH
 	return true;
 
 error:
@@ -1114,9 +1102,7 @@ error:
     enable_endstops(endstops_enabled);
 #ifdef BLTOUCH
     servos[0].write(160);
-    servos[0].write(160);
-    servos[0].write(90);
-    servos[0].write(90);
+    stowBLT();
     enable_z_blt_endstop(endstop_z_blt_enabled);
 #else
     enable_z_endstop(endstop_z_enabled);
@@ -1124,7 +1110,9 @@ error:
 #ifdef TMC2130
 	FORCE_HIGH_POWER_END;
 #endif
+#ifndef BLTOUCH
     bedPWMDisabled = 0;
+#endif // BLTOUCH
 	return false;
 }
 
@@ -3010,6 +2998,28 @@ bool sample_mesh_and_store_reference()
     enable_z_endstop(endstop_z_enabled);
     return true;
 }
+
+#ifdef BLTOUCH
+void deployBLT()
+{
+      //Setup BLTOUCH for probe
+      servos[0].write(10);
+      delay_keep_alive(100);
+      servos[0].write(60);
+      bool Z_MIN_NOT_READY = 1;
+      while(Z_MIN_NOT_READY)
+      {
+        delay_keep_alive(10);
+        Z_MIN_NOT_READY = READ(Z_MIN_PIN_BLT);
+      }
+}
+
+void stowBLT()
+{
+    servos[0].write(90);
+    delay_keep_alive(100);
+}
+#endif // BLTOUCH
 
 #ifndef NEW_XYZCAL
 bool scan_bed_induction_points(int8_t verbosity_level)

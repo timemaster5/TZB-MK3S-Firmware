@@ -2348,10 +2348,7 @@ void homeaxis(int axis, uint8_t cnt)
 		FORCE_HIGH_POWER_START;
 #endif	
 #ifdef BLTOUCH
-      //Setup BLTOUCH for probe
-      servos[0].write(10);
-      _delay(100);
-      servos[0].write(60);
+      deployBLT();
       bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
 #endif // BLTOUCH
         int axis_home_dir = home_dir(axis);
@@ -2370,9 +2367,7 @@ void homeaxis(int axis, uint8_t cnt)
         plan_buffer_line_destinationXYZE(feedrate/60);
         st_synchronize();
 #ifdef BLTOUCH
-      //Setup BLTOUCH for probe
-      servos[0].write(10);
-      servos[0].write(60);
+        deployBLT();
 #endif // BLTOUCH
         destination[axis] = 2*home_retract_mm(axis) * axis_home_dir;
         feedrate = homing_feedrate[axis]/2 ;
@@ -2383,8 +2378,8 @@ void homeaxis(int axis, uint8_t cnt)
 #endif // BLTOUCH
         st_synchronize();
 #ifdef BLTOUCH
-    servos[0].write(90);
-    enable_z_blt_endstop(endstop_z_blt_enabled);
+        stowBLT();
+        enable_z_blt_endstop(endstop_z_blt_enabled);
 #endif // BLTOUCH        
 #ifdef TMC2130
         check_Z_crash();
@@ -5061,8 +5056,8 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			else current_position[Z_AXIS] += 2.f / nMeasPoints; //use relative movement from Z coordinate where PINDa triggered on previous point. This makes calibration faster.
 #else
       if((ix == 0) && (iy == 0)) 
-        current_position[Z_AXIS] = MESH_HOME_Z_SEARCH + 2; // More time for PIN on first one
-      else current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
+        current_position[Z_AXIS] = MESH_HOME_Z_SEARCH; // More time for PIN on first one
+      else current_position[Z_AXIS] += 2;
 #endif // BLTOUCH
 			float init_z_bckp = current_position[Z_AXIS];
 			plan_buffer_line_curposXYZE(Z_LIFT_FEEDRATE);
@@ -5136,16 +5131,11 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			offset_z = temp_compensation_pinda_thermistor_offset(current_temperature_pinda);
   #endif // BLTOUCH
 #endif //PINDA_THERMISTOR
-//			#ifdef SUPPORT_VERBOSITY
-/*			if (verbosity_level >= 1)
-			{
-				SERIAL_ECHOPGM("mesh bed leveling: ");
-				MYSERIAL.print(current_position[Z_AXIS], 5);
-				SERIAL_ECHOPGM(" offset: ");
-				MYSERIAL.print(offset_z, 5);
-				SERIAL_ECHOLNPGM("");
-			}*/
-//			#endif // SUPPORT_VERBOSITY
+      /*SERIAL_ECHOPGM("mesh bed leveling: ");
+      MYSERIAL.print(current_position[Z_AXIS], 5);
+      SERIAL_ECHOPGM(" offset: ");
+      MYSERIAL.print(offset_z, 5);
+      SERIAL_ECHOLN();*/
 			mbl.set_z(ix, iy, current_position[Z_AXIS] - offset_z); //store measured z values z_values[iy][ix] = z - offset_z;
 
 			custom_message_state--;
@@ -9838,9 +9828,9 @@ void delay_keep_alive(unsigned int ms)
         lcd_update(0);
         if (ms == 0)
             break;
-        else if (ms >= 50) {
-            _delay(50);
-            ms -= 50;
+        else if (ms >= 25) {
+            _delay(25);
+            ms -= 25;
         } else {
 			_delay(ms);
             ms = 0;

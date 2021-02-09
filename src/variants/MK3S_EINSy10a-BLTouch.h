@@ -84,7 +84,7 @@
 #define Z_PAUSE_LIFT 20
 
 #define NUM_AXIS 4 // The axis order in all axis related arrays is X, Y, Z, E
-#define HOMING_FEEDRATE {3000, 3000, 400, 0}  // set the homing speeds (mm/min) // 3000 is also valid for stallGuard homing. Valid range: 2200 - 3000
+#define HOMING_FEEDRATE {3000, 3000, 800, 0}  // set the homing speeds (mm/min) // 3000 is also valid for stallGuard homing. Valid range: 2200 - 3000
 
 //#define DEFAULT_Y_OFFSET    4.f // Default distance of Y_MIN_POS point from endstop, when the printer is not calibrated.
 /**
@@ -421,8 +421,8 @@
 
 // Mesh definitions
 #define MESH_MIN_X 21.5
-#define MESH_MAX_X 233.5
-#define MESH_MIN_Y 43.5
+#define MESH_MAX_X 230.5
+#define MESH_MIN_Y 43.5 
 #define MESH_MAX_Y 176.9
 
 // Mesh upsample definition
@@ -436,7 +436,7 @@
 #define BED_ADJUSTMENT_UM_MAX 100
 
 #define MESH_HOME_Z_CALIB 0.2
-#define MESH_HOME_Z_SEARCH 4.f           // Z lift for homing, mesh bed leveling etc.
+#define MESH_HOME_Z_SEARCH 2.5f           // Z lift for homing, mesh bed leveling etc.
 
 #define X_PROBE_OFFSET_FROM_EXTRUDER 23     // Z probe to nozzle X offset: -left  +right
 #define Y_PROBE_OFFSET_FROM_EXTRUDER 5     // Z probe to nozzle Y offset: -front +behind

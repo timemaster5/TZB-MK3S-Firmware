@@ -226,7 +226,9 @@ void mmu_loop(void)
   {
     // Undates Active Extruder when every MMU is changed. eg. manual ex selection fro feed_filament
     if ((tData1 == 'A') && (tData2 == 'E') && (tData3 < 5)) {
+      #ifdef MMU_DEBUG
       printf_P(PSTR("MMU2S => MK32S 'OK Active Extruder:%d'\n"), tmp_extruder + 1);
+      #endif
       tmp_extruder = tData3;
       mmu_extruder = tmp_extruder; }
     else if ((tData1 == 'S') && (tData2 == 'E') && (tData3 == 'T') && tData4 == 'U' && tData5 == 'P')
@@ -394,7 +396,9 @@ void mmu_loop(void)
     {
       tmp_extruder = tData3;
       mmu_extruder = tmp_extruder;
+      #ifdef MMU_DEBUG
       printf_P(PSTR("MMU2S => MK32S 'Active Extruder:%d'\n"), tmp_extruder + 1);
+      #endif
       #ifdef MMU_FORCE_STEALTH_MODE
 	    SilentModeMenu_MMU = 1;
       #endif
@@ -418,18 +422,24 @@ void mmu_loop(void)
     if ((tData1 == 'O') && (tData2 == 'K') && (tData3 == 'M') && (tData4 == SilentModeMenu_MMU))
     {
 			eeprom_update_byte((uint8_t*)EEPROM_MMU_STEALTH, SilentModeMenu_MMU);
+      #ifdef MMU_DEBUG
       printf_P(PSTR("MMU2S => MK32S 'Confirm M%d'\n"), SilentModeMenu_MMU);
+      #endif
       mmu_state = S::Idle;
     }
     return; // Exit method.case S::Idle:
   case S::Idle:
     if (mmu_cmd != MmuCmd::None)
     {
+      #ifdef MMU_DEBUG
       printf_P(PSTR("MK32S => MMU2S Request 'MmuCmd::%s'\n"), mmucmdnames[(uint8_t)mmu_cmd]);
+      #endif
       if ((mmu_cmd >= MmuCmd::T0) && (mmu_cmd <= MmuCmd::T4))
       { // CMD Has a Long execution, ensure to handle this
         filament = mmu_cmd - MmuCmd::T0;
+        #ifdef MMU_DEBUG
         printf_P(PSTR("MK32S => MMU2S 'T%d'\n"), filament);
+        #endif
         unsigned char tempTxCMD[5] = {'T', (uint8_t)filament, BLK, BLK, BLK};
         uart2_txPayload(tempTxCMD);
         mmu_fil_loaded = true;
@@ -440,14 +450,18 @@ void mmu_loop(void)
       else if ((mmu_cmd >= MmuCmd::L0) && (mmu_cmd <= MmuCmd::L4))
       { // CMD Has a Long execution, ensure to handle this
         filament = mmu_cmd - MmuCmd::L0;
+        #ifdef MMU_DEBUG
         printf_P(PSTR("MK32S => MMU2S 'L%d'\n"), filament);
+        #endif
         unsigned char tempLxCMD[5] = {'L', (uint8_t)filament, BLK, BLK, BLK};
         uart2_txPayload(tempLxCMD);
         mmu_state = S::Wait;
       }
       else if (mmu_cmd == MmuCmd::C0)
       {
+        #ifdef MMU_DEBUG
         printf_P(PSTR("MK32S => MMU2S 'C0'\n"));
+        #endif
         uart2_txPayload((unsigned char *)"C0---");
         mmu_state = S::Wait;
       }
@@ -461,7 +475,9 @@ void mmu_loop(void)
       else if ((mmu_cmd >= MmuCmd::E0) && (mmu_cmd <= MmuCmd::E4))
       { // CMD Has a Long execution, ensure to handle this
         filament = mmu_cmd - MmuCmd::E0;
+        #ifdef MMU_DEBUG
         printf_P(PSTR("MK32S => MMU2S 'E%d'\n"), filament);
+        #endif
         unsigned char tempExCMD[5] = {'E', (uint8_t)filament, BLK, BLK, BLK};
         uart2_txPayload(tempExCMD);
         mmu_fil_loaded = false;
@@ -469,7 +485,9 @@ void mmu_loop(void)
       }
       else if (mmu_cmd == MmuCmd::R0)
       { // CMD Has a Long execution, ensure to handle this
+        #ifdef MMU_DEBUG
         printf_P(PSTR("MK32S => MMU2S 'R0'\n"));
+        #endif
         uart2_txPayload((unsigned char *)"R0---");
         mmu_state = S::Wait;
       }
@@ -477,7 +495,9 @@ void mmu_loop(void)
       {
         uint8_t extruder = mmu_cmd - MmuCmd::F0;
         unsigned char tempFxCMD[5] = {'F', (uint8_t)extruder, mmu_filament_types[extruder], BLK, BLK};
+        #ifdef MMU_DEBUG
         printf_P(PSTR("MK32S => MMU2S 'F%d %d'\n"), extruder, mmu_filament_types[extruder]);
+        #endif
         uart2_txPayload(tempFxCMD);
         mmu_state = S::Wait;
       }
@@ -485,7 +505,9 @@ void mmu_loop(void)
       {
         uint8_t extruder = mmu_cmd - MmuCmd::K0;
         unsigned char tempKxCMD[5] = {'K', (uint8_t)extruder, BLK, BLK, BLK};
+        #ifdef MMU_DEBUG
         printf_P(PSTR("MK32S => MMU2S 'K%d'\n"), extruder);
+        #endif
         uart2_txPayload(tempKxCMD);
         mmu_state = S::Wait;
       }
@@ -493,7 +515,9 @@ void mmu_loop(void)
     }
     else if ((eeprom_read_byte((uint8_t*)EEPROM_MMU_STEALTH) != SilentModeMenu_MMU) && mmu_ready)
     {
+      #ifdef MMU_DEBUG
       printf_P(PSTR("MK32S => MMU2S 'M%d'\n"), SilentModeMenu_MMU);
+      #endif
       unsigned char tempSetMode[5] = {'M', SilentModeMenu_MMU, BLK, BLK, BLK};
       uart2_txPayload(tempSetMode);
       mmu_state = S::SetMode;
@@ -507,12 +531,16 @@ void mmu_loop(void)
   case S::Wait:
     if (tData1 == 'U')
     {
+      #ifdef MMU_DEBUG
       printf_P(PSTR("MMU2S => MK32S 'Unload Feedrate: %d%d'\n"), tData2, tData3);
+      #endif
       mmu_unload_synced((tData2 << 8) | (tData3));
     }
     else if ((tData1 == 'O') && (tData2 == 'K'))
     {
+      #ifdef MMU_DEBUG
       printf_P(PSTR("MMU2S => MK32S 'ok'\n"));
+      #endif
       mmu_attempt_nr = 0;
       mmu_last_cmd = MmuCmd::None;
       mmu_ready = true;
@@ -527,7 +555,9 @@ void mmu_reset(void)
   #ifdef MMU_HWRESET //HW - pulse reset pin
   digitalWrite(MMU_RST_PIN, LOW);
   _delay_us(50);
+  #ifdef MMU_DEBUG
   printf_P(PSTR("MK3S => MMU2S : HWR RESET\n"));
+  #endif
   digitalWrite(MMU_RST_PIN, HIGH);
   #else //SW - send X0 command
   uart2_txPayload((unsigned char *)"X0---");
@@ -537,7 +567,9 @@ void mmu_reset(void)
 void mmu_set_filament_type(uint8_t extruder, uint8_t filament)
 {
   mmu_filament_types[extruder] = filament;
+  #ifdef MMU_DEBUG
   printf_P(PSTR("MK3 => 'F%d %d'\n"), extruder, filament);
+  #endif
   mmu_command(MmuCmd::F0 + extruder);
   manage_response(false, false);
 } // End of mmu_set_filament_type() method.
@@ -580,7 +612,9 @@ bool mmu_get_response(void)
       }
       if (isEXTLoaded) {
         uart2_txPayload((unsigned char *)"IRSEN");
+        #ifdef MMU_DEBUG
         printf_P(PSTR("MK32S => MMU2S 'Filament seen at extruder'\n"));
+        #endif
         mmu_idl_sens = false;
       }
       MMU_IRSENS = false;
@@ -690,7 +724,9 @@ void manage_response(bool move_axes, bool turn_off_nozzle)
     }
 	}
   if (mmu_print_saved) {
+    #ifdef MMU_DEBUG
     printf_P(PSTR("MMU starts responding\n"));
+    #endif
     KEEPALIVE_STATE(IN_HANDLER);
     shutdownE0(false);  // Reset E0 Currents.
     if (turn_off_nozzle)
@@ -736,11 +772,15 @@ void shutdownE0(bool shutdown)
       mmuE0BackupCurrents[1] = tmc2130_current_r[E_AXIS];
       tmc2130_set_current_h(E_AXIS, 0);
       tmc2130_set_current_r(E_AXIS, 0);
+      #ifdef MMU_DEBUG
       printf_P(PSTR("E-AXIS Disabled.\n"));
+      #endif
   } else if (!shutdown && ((tmc2130_current_h[E_AXIS] == 0) && (tmc2130_current_r[E_AXIS] == 0))) {
       tmc2130_set_current_h(E_AXIS, mmuE0BackupCurrents[0]);
       tmc2130_set_current_r(E_AXIS, mmuE0BackupCurrents[1]);
+      #ifdef MMU_DEBUG
       printf_P(PSTR("E-AXIS Enabled.\n"));
+      #endif
   }
   #else
   if (shutdown) disable_e0();
@@ -891,7 +931,9 @@ void extr_adj(uint8_t extruder) //loading filament for SNMM
   MmuCmd cmd = MmuCmd::L0 + extruder;
   if (extruder > (MmuCmd::L4 - MmuCmd::L0))
   {
+    #ifdef MMU_DEBUG
     printf_P(PSTR("Filament out of range %d \n"), extruder);
+    #endif
     return;
   }
   mmu_command(cmd);
@@ -1204,7 +1246,9 @@ void mmu_continue_loading(void)
         } else state = Ls::Unload;
         break;
     case Ls::Unload:
+        #ifdef MMU_DEBUG
         printf_P(PSTR("Jam, Malformed Tip or Clog.\n"));
+        #endif
         #ifdef OCTO_NOTIFICATIONS_ON
         printf_P(PSTR("// action:jamDetected\n"));
         #endif // OCTO_NOTIFICATIONS_ON

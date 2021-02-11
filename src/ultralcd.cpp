@@ -7783,12 +7783,19 @@ bool lcd_selftest()
 
 		//homeaxis(X_AXIS);
 		//homeaxis(Y_AXIS);
+#ifndef BLTOUCH
         current_position[X_AXIS] = pgm_read_float(bed_ref_points_4);
 		current_position[Y_AXIS] = pgm_read_float(bed_ref_points_4+1);
 #ifdef TMC2130
 		//current_position[X_AXIS] += 0;
 		current_position[Y_AXIS] += 4;
 #endif //TMC2130
+#else
+		//homeaxis(X_AXIS);
+		//homeaxis(Y_AXIS);
+		current_position[X_AXIS] = BED_X0_BLT;
+		current_position[Y_AXIS] = BED_Y0_BLT;
+#endif // BLTOUCH
 		current_position[Z_AXIS] = current_position[Z_AXIS] + 10;
 		plan_buffer_line_curposXYZE(manual_feedrate[0] / 60);
 		st_synchronize();

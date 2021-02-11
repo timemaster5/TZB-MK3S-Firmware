@@ -2888,8 +2888,13 @@ bool sample_mesh_and_store_reference()
         // The first point defines the reference.
         current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
         go_to_current(homing_feedrate[Z_AXIS]/60);
+#ifdef BLTOUCH
+        destination[X_AXIS] = BED_X0_BLT;
+        destination[Y_AXIS] = BED_Y0_BLT;
+#else
         current_position[X_AXIS] = BED_X0;
         current_position[Y_AXIS] = BED_Y0;
+#endif // BLTOUCH
         world2machine_clamp(current_position[X_AXIS], current_position[Y_AXIS]);
         go_to_current(homing_feedrate[X_AXIS]/60);
         memcpy(destination, current_position, sizeof(destination));

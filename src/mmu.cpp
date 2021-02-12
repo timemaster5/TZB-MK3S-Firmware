@@ -1287,6 +1287,7 @@ void mmu_continue_loading(void)
         lcd_update_enable(true);
         shutdownE0(false);  // Reset E0 Currents.
         restore_print_from_ram_and_continue(0);
+        retry = 0;
         state = Ls::Retry;
         break;
     }

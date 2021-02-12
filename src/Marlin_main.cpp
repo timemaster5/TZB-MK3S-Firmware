@@ -2345,11 +2345,11 @@ void homeaxis(int axis, uint8_t cnt)
     else if ((axis==Z_AXIS)?HOMEAXIS_DO(Z):0)
 	{
 #ifdef TMC2130
-		FORCE_HIGH_POWER_START;
+		    FORCE_HIGH_POWER_START;
 #endif	
 #ifdef BLTOUCH
-      deployBLT();
-      bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
+        deployBLT();
+        bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
 #endif // BLTOUCH
         int axis_home_dir = home_dir(axis);
         current_position[axis] = 0;

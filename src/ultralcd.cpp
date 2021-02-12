@@ -7791,8 +7791,6 @@ bool lcd_selftest()
 		current_position[Y_AXIS] += 4;
 #endif //TMC2130
 #else
-		//homeaxis(X_AXIS);
-		//homeaxis(Y_AXIS);
 		current_position[X_AXIS] = BED_X0_BLT;
 		current_position[Y_AXIS] = BED_Y0_BLT;
 #endif // BLTOUCH
@@ -9224,10 +9222,15 @@ void menu_lcd_lcdupdate_func(void)
 		if (lcd_draw_update) lcd_draw_update--;
 		lcd_next_update_millis = _millis() + LCD_UPDATE_INTERVAL;
 	}
-	if (!SdFatUtil::test_stack_integrity()) stack_error();
+	if (!SdFatUtil::test_stack_integrity()) 
+#ifndef BLTOUCH
+	stack_error();
 	lcd_ping(); //check that we have received ping command if we are in farm mode
 	lcd_send_status();
 	if (lcd_commands_type == LcdCommands::Layer1Cal) lcd_commands();
+#else
+	softReset();
+#endif // BLTOUCH
 }
 
 #ifdef TMC2130

@@ -1026,7 +1026,7 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 #endif // BLTOUCH
 			current_position[Z_AXIS] = minimum_z;
 #ifdef BLTOUCH
-            deployBLT();
+        deployBLT();
             go_to_current((homing_feedrate[Z_AXIS]/8)/60);
 #else
             go_to_current(homing_feedrate[Z_AXIS]/(4*60));
@@ -1079,7 +1079,7 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
         current_position[Z_AXIS] /= float(n_iter);
 
 #ifdef BLTOUCH
-        stowBLT();
+    stowBLT();
 #endif // BLTOUCH
 
     enable_endstops(endstops_enabled);
@@ -2866,7 +2866,11 @@ void go_home_with_z_lift()
 bool sample_mesh_and_store_reference()
 {
     bool endstops_enabled  = enable_endstops(false);
+#ifndef BLTOUCH
     bool endstop_z_enabled = enable_z_endstop(false);
+#else
+    bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
+#endif // BLTOUCH
 
     // Don't let the manage_inactivity() function remove power from the motors.
     refresh_cmd_timeout();
@@ -2889,8 +2893,8 @@ bool sample_mesh_and_store_reference()
         current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
         go_to_current(homing_feedrate[Z_AXIS]/60);
 #ifdef BLTOUCH
-        destination[X_AXIS] = BED_X0_BLT;
-        destination[Y_AXIS] = BED_Y0_BLT;
+        current_position[X_AXIS] = BED_X0_BLT;
+        current_position[Y_AXIS] = BED_Y0_BLT;
 #else
         current_position[X_AXIS] = BED_X0;
         current_position[Y_AXIS] = BED_Y0;
@@ -2926,8 +2930,13 @@ bool sample_mesh_and_store_reference()
 		int8_t ix = mesh_point % MESH_MEAS_NUM_X_POINTS;
 		int8_t iy = mesh_point / MESH_MEAS_NUM_X_POINTS;
 		if (iy & 1) ix = (MESH_MEAS_NUM_X_POINTS - 1) - ix; // Zig zag
+#ifndef BLTOUCH
 		current_position[X_AXIS] = BED_X(ix, MESH_MEAS_NUM_X_POINTS);
 		current_position[Y_AXIS] = BED_Y(iy, MESH_MEAS_NUM_Y_POINTS);
+#else
+		current_position[X_AXIS] = BED_X_BLT(ix, MESH_MEAS_NUM_X_POINTS);
+		current_position[Y_AXIS] = BED_Y_BLT(iy, MESH_MEAS_NUM_Y_POINTS);
+#endif // BLTOUCH
         world2machine_clamp(current_position[X_AXIS], current_position[Y_AXIS]);
         go_to_current(homing_feedrate[X_AXIS]/60);
 #ifdef MESH_BED_CALIBRATION_SHOW_LCD
@@ -3000,7 +3009,11 @@ bool sample_mesh_and_store_reference()
     go_home_with_z_lift();
 
     enable_endstops(endstops_enabled);
+#ifndef BLTOUCH
     enable_z_endstop(endstop_z_enabled);
+#else
+    enable_z_blt_endstop(endstop_z_blt_enabled);
+#endif // BLTOUCH
     return true;
 }
 

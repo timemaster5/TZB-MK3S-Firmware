@@ -968,6 +968,7 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
     endstop_z_blt_hit_on_purpose();
     float z = 0.f;
 #else
+    float z = 0.f;
     bool endstop_z_enabled = enable_z_endstop(false);
     endstop_z_hit_on_purpose();
 

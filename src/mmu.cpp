@@ -38,16 +38,6 @@ static uint8_t mmu_attempt_nr = 0;
 #define MMU_RST_PIN 76
 #endif //MMU_HWRESET
 
-#ifdef MMU_DEBUG
-static const auto DEBUG_PUTCHAR = putchar;
-static const auto DEBUG_PUTS_P = puts_P;
-static const auto DEBUG_PRINTF_P = printf_P;
-#else //MMU_DEBUG
-#define DEBUG_PUTCHAR(c)
-#define DEBUG_PUTS_P(str)
-#define DEBUG_PRINTF_P(__fmt, ...)
-#endif //MMU_DEBUG
-
 namespace
 { // MMU2S States
   enum class S : uint_least8_t
@@ -1169,7 +1159,6 @@ static bool can_load()
     uint_least8_t filament_detected_count = 0;
     const float e_increment = 0.2;
     const uint_least8_t steps = 6.0 / e_increment;
-    DEBUG_PUTS_P(PSTR("MMU can_load:"));
     for(uint_least8_t i = 0; i < steps; ++i)
     {
         current_position[E_AXIS] -= e_increment;

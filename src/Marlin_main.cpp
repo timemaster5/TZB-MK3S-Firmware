@@ -1224,6 +1224,7 @@ void setup()
 
 #ifdef STRING_VERSION_CONFIG_H
 #ifdef STRING_CONFIG_H_AUTHOR
+#ifdef BLTOUCH
 	SERIAL_ECHO_START;
 	SERIAL_ECHORPGM(_n(" Last Updated: "));////MSG_CONFIGURATION_VER
 	SERIAL_ECHOPGM(STRING_VERSION_CONFIG_H);
@@ -1231,6 +1232,7 @@ void setup()
 	SERIAL_ECHOLNPGM(STRING_CONFIG_H_AUTHOR);
 	SERIAL_ECHOPGM("Compiled: ");
 	SERIAL_ECHOLNPGM(__DATE__);
+#endif
 #endif
 #endif
 
@@ -4564,6 +4566,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
     Sensor must be over the bed.
     The maximum travel distance before an error is triggered is 10mm.
     */
+#ifndef BLTOUCH
     case 30: 
         {
             st_synchronize();
@@ -4579,18 +4582,19 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
             clean_up_after_endstop_move(l_feedmultiply);
         }
         break;
-	
+#endif // BLTOUCH
   /*!
   ### G75 - Print temperature interpolation <a href="https://reprap.org/wiki/G-code#G75:_Print_temperature_interpolation">G75: Print temperature interpolation</a>
   Show/print PINDA temperature interpolating.
   */
+#ifndef BLTOUCH
 	case 75:
 	{
 		for (int i = 40; i <= 110; i++)
 			printf_P(_N("%d  %.2f"), i, temp_comp_interpolation(i));
 	}
 	break;
-
+#endif // BLTOUCH
   /*!
   ### G76 - PINDA probe temperature calibration <a href="https://reprap.org/wiki/G-code#G76:_PINDA_probe_temperature_calibration">G76: PINDA probe temperature calibration</a>
   This G-code is used to calibrate the temperature drift of the PINDA (inductive Sensor).
@@ -4614,6 +4618,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
   echo PINDA temperature -- Z shift (mm): 0.---
   ```
   */
+#ifndef BLTOUCH
   case 76: 
 	{
 #ifdef PINDA_THERMISTOR
@@ -4869,6 +4874,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 #endif //PINDA_THERMISTOR
 	}
 	break;
+#endif // BLTOUCH
 
 
     /*!
@@ -5216,13 +5222,14 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			}
 			if (correction == 0)
 				continue;
-			
+#ifdef BLTOUCH
 			if (labs(correction) > BED_ADJUSTMENT_UM_MAX) {
 				SERIAL_ERROR_START;
 				SERIAL_ECHOPGM("Excessive bed leveling correction: ");
 				SERIAL_ECHO(correction);
 				SERIAL_ECHOLNPGM(" microns");
 			}
+#endif // BLTOUCH
 			else {
 				float offset = float(correction) * 0.001f;
 				switch (i) {
@@ -5434,9 +5441,10 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
         */
 
         // Prusa3D specific: Don't know what it is for, it is in V2Calibration.gcode
-
+#ifndef BLTOUCH
 		    case 88:
 			      break;
+#endif // BLTOUCH
 
 
 #endif  // ENABLE_MESH_BED_LEVELING
@@ -5489,6 +5497,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 	Enable Prusa-specific Farm functions and g-code.
     See Internal Prusa commands.
     */
+#ifndef BLTOUCH
 	case 98:
 		farm_mode = 1;
 		PingTime = _millis();
@@ -5509,6 +5518,7 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 		lcd_update(2);
           fCheckModeInit();                       // alternatively invoke printer reset
 		break;
+#endif // BLTOUCH
 	default:
 		printf_P(PSTR("Unknown G code: %s \n"), cmdbuffer + bufindr + CMDHDRSIZE);
     }
@@ -6699,12 +6709,16 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
           SERIAL_ECHORPGM(FW_VERSION_STR_P());
           SERIAL_ECHOPGM(" based on Marlin FIRMWARE_URL:https://github.com/prusa3d/Prusa-Firmware PROTOCOL_VERSION:");
           SERIAL_ECHOPGM(PROTOCOL_VERSION);
+#ifdef BLTOUCH
+          SERIAL_ECHOLNPGM(" MACHINE_TYPE:");
+#else
           SERIAL_ECHOPGM(" MACHINE_TYPE:");
           SERIAL_ECHOPGM(CUSTOM_MENDEL_NAME); 
           SERIAL_ECHOPGM(" EXTRUDER_COUNT:"); 
           SERIAL_ECHOPGM(STRINGIFY(EXTRUDERS)); 
           SERIAL_ECHOPGM(" UUID:"); 
           SERIAL_ECHOLNPGM(MACHINE_UUID);
+#endif // BLTOUCH
       }
       break;
 
@@ -9828,9 +9842,9 @@ void delay_keep_alive(unsigned int ms)
         lcd_update(0);
         if (ms == 0)
             break;
-        else if (ms >= 25) {
-            _delay(25);
-            ms -= 25;
+        else if (ms >= 10) {
+            _delay(10);
+            ms -= 10;
         } else {
 			_delay(ms);
             ms = 0;
@@ -9901,7 +9915,9 @@ void check_babystep()
 
 	if ((babystep_z < Z_BABYSTEP_MIN) || (babystep_z > Z_BABYSTEP_MAX)) {
 		babystep_z = 0; //if babystep value is out of min max range, set it to 0
+#ifdef BLTOUCH
 		SERIAL_ECHOLNPGM("Z live adjust out of range. Setting to 0");
+#endif // BLTOUCH
 		eeprom_write_word(reinterpret_cast<uint16_t *>(&(EEPROM_Sheets_base->
             s[(eeprom_read_byte(&(EEPROM_Sheets_base->active_sheet)))].z_offset)),
                     babystep_z);
@@ -10797,14 +10813,18 @@ void setup_uvlo_interrupt() {
     // check if power was lost before we armed the interrupt
     if(!(PINE & (1 << 4)) && eeprom_read_byte((uint8_t*)EEPROM_UVLO))
     {
+#ifdef BLTOUCH
         SERIAL_ECHOLNPGM("INT4");
+#endif
         uvlo_drain_reset();
     }
 }
 
 ISR(INT4_vect) {
 	EIMSK &= ~(1 << 4); //disable INT4 interrupt to make sure that this code will be executed just once 
+#ifdef BLTOUCH
 	SERIAL_ECHOLNPGM("INT4");
+#endif
     //fire normal uvlo only in case where EEPROM_UVLO is 0 or if IS_SD_PRINTING is 1. 
      if(PRINTER_ACTIVE && (!(eeprom_read_byte((uint8_t*)EEPROM_UVLO)))) uvlo_();
      if(eeprom_read_byte((uint8_t*)EEPROM_UVLO)) uvlo_tiny();
@@ -10945,20 +10965,25 @@ void restore_print_from_eeprom(bool mbl_was_active) {
 	fan_speed_rec = eeprom_read_byte((uint8_t*)EEPROM_UVLO_FAN_SPEED);
     feedrate_rec = eeprom_read_word((uint16_t*)EEPROM_UVLO_FEEDRATE);
     feedmultiply_rec = eeprom_read_word((uint16_t*)EEPROM_UVLO_FEEDMULTIPLY);
+#ifdef BLTOUCH
 	SERIAL_ECHOPGM("Feedrate:");
 	MYSERIAL.print(feedrate_rec);
 	SERIAL_ECHOPGM(", feedmultiply:");
 	MYSERIAL.println(feedmultiply_rec);
+#endif
 
 	depth = eeprom_read_byte((uint8_t*)EEPROM_DIR_DEPTH);
-	
+#ifdef BLTOUCH
 	MYSERIAL.println(int(depth));
+#endif
 	for (int i = 0; i < depth; i++) {
 		for (int j = 0; j < 8; j++) {
 			dir_name[j] = eeprom_read_byte((uint8_t*)EEPROM_DIRS + j + 8 * i);
 		}
 		dir_name[8] = '\0';
+#ifdef BLTOUCH
 		MYSERIAL.println(dir_name);
+#endif
 		strcpy(dir_names[i], dir_name);
 		card.chdir(dir_name);
 	}
@@ -10968,13 +10993,17 @@ void restore_print_from_eeprom(bool mbl_was_active) {
 	}
 	filename[8] = '\0';
 
+#ifdef BLTOUCH
 	MYSERIAL.print(filename);
+#endif
 	strcat_P(filename, PSTR(".gco"));
 	sprintf_P(cmd, PSTR("M23 %s"), filename);
 	enquecommand(cmd);
 	uint32_t position = eeprom_read_dword((uint32_t*)(EEPROM_FILE_POSITION));
 	SERIAL_ECHOPGM("Position read from eeprom:");
+#ifdef BLTOUCH
 	MYSERIAL.println(position);
+#endif
 
     // Move to the XY print position in logical coordinates, where the print has been killed, but
     // without shifting Z along the way. This requires performing the move without mbl.

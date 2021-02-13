@@ -7059,7 +7059,9 @@ static void lcd_main_menu()
 }
 
 void stack_error() {
+#ifndef BLTOUCH
 	Sound_MakeCustom(1000,0,true);
+#endif
 	lcd_display_message_fullscreen_P(_i("Error - static memory has been overwritten"));////MSG_STACK_ERROR c=20 r=4
 	//err_triggered = 1;
 	 while (1) delay_keep_alive(1000);
@@ -9223,14 +9225,10 @@ void menu_lcd_lcdupdate_func(void)
 		lcd_next_update_millis = _millis() + LCD_UPDATE_INTERVAL;
 	}
 	if (!SdFatUtil::test_stack_integrity()) 
-#ifndef BLTOUCH
 	stack_error();
 	lcd_ping(); //check that we have received ping command if we are in farm mode
 	lcd_send_status();
 	if (lcd_commands_type == LcdCommands::Layer1Cal) lcd_commands();
-#else
-	softReset();
-#endif // BLTOUCH
 }
 
 #ifdef TMC2130

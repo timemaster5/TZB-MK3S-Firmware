@@ -962,13 +962,12 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
     if(verbosity_level >= 10) SERIAL_ECHOLNPGM("find bed induction sensor point z");
 	#endif // SUPPORT_VERBOSITY
 
+    float z = 0.f;
 	bool endstops_enabled  = enable_endstops(true);
 #ifdef BLTOUCH
     bool endstop_z_blt_enabled = enable_z_blt_endstop(false);
     endstop_z_blt_hit_on_purpose();
-    float z = 0.f;
 #else
-    float z = 0.f;
     bool endstop_z_enabled = enable_z_endstop(false);
     endstop_z_hit_on_purpose();
 
@@ -994,7 +993,8 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
     for (uint8_t i = 0; i < n_iter; ++ i)
 	{
 #ifdef BLTOUCH
-        current_position[Z_AXIS] += 0.5f;
+        if (i != 0 && !high_deviation_occured) current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
+        else if (high_deviation_occured) current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
 #else
 		current_position[Z_AXIS] += high_deviation_occured ? 0.5 : 0.2;
 #endif // BLTOUCH
@@ -1007,7 +1007,7 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
         current_position[Z_AXIS] = minimum_z;
 		//printf_P(PSTR("init Z = %f, min_z = %f, i = %d\n"), z_bckp, minimum_z, i);
 #ifdef BLTOUCH
-        go_to_current((homing_feedrate[Z_AXIS]/8)/60);
+        go_to_current(HOMING_FEEDRATE_BLT/60);
 #else
         go_to_current(homing_feedrate[Z_AXIS]/(4*60));
 #endif // BLTOUCH
@@ -1017,20 +1017,16 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 		if (abs(current_position[Z_AXIS] - z_bckp) < 0.025) {
 			//printf_P(PSTR("PINDA triggered immediately, move Z higher and repeat measurement\n")); 
 #ifndef BLTOUCH
-			current_position[Z_AXIS] += 0.5;
-#endif // BLTOUCH
-#ifdef BLTOUCH
-            current_position[Z_AXIS] += 1.f;
-            go_to_current((homing_feedrate[Z_AXIS]/2)/60);
-#else
-			go_to_current(homing_feedrate[Z_AXIS]/60);
-#endif // BLTOUCH
-			current_position[Z_AXIS] = minimum_z;
-#ifdef BLTOUCH
-        deployBLT();
-            go_to_current((homing_feedrate[Z_AXIS]/8)/60);
-#else
+            current_position[Z_AXIS] += 0.5;
+            go_to_current(homing_feedrate[Z_AXIS]/60);
+            current_position[Z_AXIS] = minimum_z;
             go_to_current(homing_feedrate[Z_AXIS]/(4*60));
+#else
+            current_position[Z_AXIS] = MESH_HOME_Z_SEARCH;
+			go_to_current(homing_feedrate[Z_AXIS]/60);
+            current_position[Z_AXIS] = minimum_z;
+            deployBLT();
+            go_to_current(HOMING_FEEDRATE_BLT/60);
 #endif // BLTOUCH
             // we have to let the planner know where we are right now as it is not where we said to go.
 			update_current_position_z();
@@ -1055,24 +1051,21 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 //        SERIAL_ECHOPGM("Bed find_bed_induction_sensor_point_z low, height: ");
 //        MYSERIAL.print(current_position[Z_AXIS], 5);
 //        SERIAL_ECHOLNPGM("");
-        z += current_position[Z_AXIS];
-#ifndef BLTOUCH
+#ifdef BLTOUCH
+        printf_P(PSTR("BLTOUCH triggered at %f\n"), current_position[Z_AXIS]);
+#endif
         float dz = i?abs(current_position[Z_AXIS] - (z / i)):0;
-        printf_P(PSTR("Z- measurement deviation from avg value %f um\n"), dz);
+        z += current_position[Z_AXIS];
 		if (dz > 0.05) { //deviation > 50um
 			if (high_deviation_occured == false) { //first occurence may be caused in some cases by mechanic resonance probably especially if printer is placed on unstable surface 
 				//printf_P(PSTR("high dev. first occurence\n"));
 				delay_keep_alive(500); //damping
 				//start measurement from the begining, but this time with higher movements in Z axis which should help to reduce mechanical resonance
 				high_deviation_occured = true;
-				i = -1; 
+				i = -1;
 				z = 0;
-			}
-			else {
-				goto error;
-			}
+			} else goto error;
 		}
-#endif // BLTOUCH
 		//printf_P(PSTR("PINDA triggered at %f\n"), current_position[Z_AXIS]);
     }
     current_position[Z_AXIS] = z;
@@ -2931,13 +2924,8 @@ bool sample_mesh_and_store_reference()
 		int8_t ix = mesh_point % MESH_MEAS_NUM_X_POINTS;
 		int8_t iy = mesh_point / MESH_MEAS_NUM_X_POINTS;
 		if (iy & 1) ix = (MESH_MEAS_NUM_X_POINTS - 1) - ix; // Zig zag
-#ifndef BLTOUCH
 		current_position[X_AXIS] = BED_X(ix, MESH_MEAS_NUM_X_POINTS);
 		current_position[Y_AXIS] = BED_Y(iy, MESH_MEAS_NUM_Y_POINTS);
-#else
-		current_position[X_AXIS] = BED_X_BLT(ix, MESH_MEAS_NUM_X_POINTS);
-		current_position[Y_AXIS] = BED_Y_BLT(iy, MESH_MEAS_NUM_Y_POINTS);
-#endif // BLTOUCH
         world2machine_clamp(current_position[X_AXIS], current_position[Y_AXIS]);
         go_to_current(homing_feedrate[X_AXIS]/60);
 #ifdef MESH_BED_CALIBRATION_SHOW_LCD
@@ -3028,8 +3016,8 @@ void deployBLT()
       bool Z_MIN_NOT_READY = 1;
       while(Z_MIN_NOT_READY)
       {
-        delay_keep_alive(10);
         Z_MIN_NOT_READY = READ(Z_MIN_PIN_BLT);
+        delay_keep_alive(10);
       }
 }
 

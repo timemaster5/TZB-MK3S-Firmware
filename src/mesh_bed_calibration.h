@@ -12,9 +12,9 @@
 #define BED_Yn (213.4f - BED_ZERO_REF_Y) //205
 
 #ifdef BLTOUCH
-#define BED_X0_BLT (1.f - X_PROBE_OFFSET_FROM_EXTRUDER_BLT) // 21.5
-#define BED_Y0_BLT (9.4f - Y_PROBE_OFFSET_FROM_EXTRUDER_BLT) // 43.5
-#define BED_Xn_BLT (X_MAX_POS - 4.f) // 251
+#define BED_X0_BLT (24.f - X_PROBE_OFFSET_FROM_EXTRUDER_BLT) // 44.5
+#define BED_Y0_BLT (6.f - Y_PROBE_OFFSET_FROM_EXTRUDER_BLT) // 40.1
+#define BED_Xn_BLT (228.f - X_PROBE_OFFSET_FROM_EXTRUDER_BLT) // 248.5
 #define BED_Yn_BLT (Y_MAX_POS - 1.5f) // 211
 #endif // BLTOUCH
 
@@ -28,11 +28,12 @@
 #endif //not HEATBED_V2
 
 #ifdef BLTOUCH
-#define BED_X_BLT(i, n) ((float)i * (BED_Xn_BLT - BED_X0_BLT) / (n - 1) + BED_X0_BLT)
-#define BED_Y_BLT(i, n)  ((float)i * (BED_Yn_BLT - BED_Y0_BLT) / (n - 1) + BED_Y0_BLT)
-#endif // BLTOUCH
+#define BED_X(i, n) ((float)i * (BED_Xn_BLT - BED_X0_BLT) / (n - 1) + BED_X0_BLT)
+#define BED_Y(i, n)  ((float)i * (BED_Yn_BLT - BED_Y0_BLT) / (n - 1) + BED_Y0_BLT)
+#else
 #define BED_X(i, n) ((float)i * (BED_Xn - BED_X0) / (n - 1) + BED_X0)
 #define BED_Y(i, n)  ((float)i * (BED_Yn - BED_Y0) / (n - 1) + BED_Y0)
+#endif // BLTOUCH
 
 // Exact positions of the print head above the bed reference points, in the world coordinates.
 // The world coordinates match the machine coordinates only in case, when the machine

@@ -2326,12 +2326,7 @@ void homeaxis(int axis, uint8_t cnt)
         // Move from minimum
 #ifdef TMC2130
         float dist;
-/*#ifdef BLTOUCH
-        if (axis == X_AXIS) dist = BED_X0_BLT;
-        if (axis == Y_AXIS) dist = BED_Y0_BLT;
-#else*/
         dist = - axis_home_dir * 0.01f * tmc2130_home_fsteps[axis];
-//#endif // BLTOUCH
 #else //TMC2130
         float dist = - axis_home_dir * 0.01f * 64;
 #endif //TMC2130
@@ -2372,12 +2367,12 @@ void homeaxis(int axis, uint8_t cnt)
         deployBLT();
 #endif // BLTOUCH
         destination[axis] = 2*home_retract_mm(axis) * axis_home_dir;
+#ifndef BLTOUCH
         feedrate = homing_feedrate[axis]/2 ;
-#ifdef BLTOUCH
-        plan_buffer_line_destinationXYZE((feedrate/4)/60);
 #else
-        plan_buffer_line_destinationXYZE(feedrate/60);
+        feedrate = HOMING_FEEDRATE_BLT / 2 ;
 #endif // BLTOUCH
+        plan_buffer_line_destinationXYZE(feedrate/60);
         st_synchronize();
 #ifdef BLTOUCH
         stowBLT();
@@ -5070,13 +5065,8 @@ if(eSoundMode!=e_SOUND_MODE_SILENT)
 			st_synchronize();
 
 			// Move to XY position of the sensor point.
-      #ifdef BLTOUCH
-			current_position[X_AXIS] = BED_X_BLT(ix, nMeasPoints);
-			current_position[Y_AXIS] = BED_Y_BLT(iy, nMeasPoints);
-      #else
 			current_position[X_AXIS] = BED_X(ix, nMeasPoints);
 			current_position[Y_AXIS] = BED_Y(iy, nMeasPoints);
-      #endif // BLTOUCH
 
 			//printf_P(PSTR("[%f;%f]\n"), current_position[X_AXIS], current_position[Y_AXIS]);
 

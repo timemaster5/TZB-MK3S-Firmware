@@ -950,8 +950,10 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 #endif //SUPPORT_VERBOSITY
         )
 {
-	bool high_deviation_occured = false;
-#ifndef BLTOUCH
+#ifdef BLTOUCH
+	uint8_t high_deviation_occured = 0;
+#else
+    bool high_deviation_occured = false;
     bedPWMDisabled = 1;
 #endif // BLTOUCH
 #ifdef TMC2130
@@ -1051,17 +1053,23 @@ inline bool find_bed_induction_sensor_point_z(float minimum_z, uint8_t n_iter, i
 //        SERIAL_ECHOPGM("Bed find_bed_induction_sensor_point_z low, height: ");
 //        MYSERIAL.print(current_position[Z_AXIS], 5);
 //        SERIAL_ECHOLNPGM("");
-#ifdef BLTOUCH
-        printf_P(PSTR("BLTOUCH triggered at %f\n"), current_position[Z_AXIS]);
-#endif
         float dz = i?abs(current_position[Z_AXIS] - (z / i)):0;
         z += current_position[Z_AXIS];
 		if (dz > 0.05) { //deviation > 50um
+#ifdef BLTOUCH
+			if (high_deviation_occured < 3) { //first occurence may be caused in some cases by mechanic resonance probably especially if printer is placed on unstable surface 
+#else
 			if (high_deviation_occured == false) { //first occurence may be caused in some cases by mechanic resonance probably especially if printer is placed on unstable surface 
+#endif // BLTOUCH
 				//printf_P(PSTR("high dev. first occurence\n"));
 				delay_keep_alive(500); //damping
 				//start measurement from the begining, but this time with higher movements in Z axis which should help to reduce mechanical resonance
+#ifdef BLTOUCH
+				high_deviation_occured++;
+                printf_P(PSTR("High Sigma %n of %fum\n"), high_deviation_occured, dz);
+#else
 				high_deviation_occured = true;
+#endif // BLTOUCH
 				i = -1;
 				z = 0;
 			} else goto error;

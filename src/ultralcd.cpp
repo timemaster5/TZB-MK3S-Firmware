@@ -12,6 +12,7 @@
 #include "temperature.h"
 #include "stepper.h"
 #include "ConfigurationStore.h"
+#include "Configuration_adv.h"
 #include "printers.h"
 #include <string.h>
 
@@ -503,7 +504,13 @@ void lcdui_print_cmd_diag(void)
 	if (buflen < 9) lcd_print(' ');
 }
 #endif //CMD_DIAGNOSTICS
-
+// Print M860 Pinda Wait to SetTemp Status (8 chars total)
+void lcdui_print_m860()
+{
+	int chars = 0;
+	chars = lcd_printf_P(_N("P%4.1f/%2d"), current_temperature_pinda, set_target_pinda);
+	lcd_space(8 - chars);
+}
 // Print time (8 chars total)
 void lcdui_print_time(void)
 {

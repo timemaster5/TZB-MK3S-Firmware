@@ -73,10 +73,10 @@ void Config_StoreSettings()
 {
   strcpy(cs.version,"000"); //!< invalidate data first @TODO use erase to save one erase cycle
   
-  if (EEPROM_writeData(reinterpret_cast<uint8_t*>(EEPROM_M500_base),reinterpret_cast<uint8_t*>(&cs),sizeof(cs),0), "cs, invalid version")
+  if (EEPROM_writeData((uint8_t*)EEPROM_M500_base,(uint8_t*)&cs,sizeof(cs),0), "cs, invalid version")
   {
       strcpy(cs.version,EEPROM_VERSION); //!< validate data if write succeed
-      EEPROM_writeData(reinterpret_cast<uint8_t*>(EEPROM_M500_base->version), reinterpret_cast<uint8_t*>(cs.version), sizeof(cs.version), "cs.version valid");
+      EEPROM_writeData((uint8_t*)EEPROM_M500_base->version, (uint8_t*)cs.version, sizeof(cs.version), "cs.version valid");
   }
 
   SERIAL_ECHO_START;
@@ -254,12 +254,12 @@ bool Config_RetrieveSettings()
 {
 	bool previous_settings_retrieved = true;
     char ver[4]=EEPROM_VERSION;
-    EEPROM_readData(reinterpret_cast<uint8_t*>(EEPROM_M500_base->version), reinterpret_cast<uint8_t*>(cs.version), sizeof(cs.version), "cs.version"); //read stored version
+    EEPROM_readData((uint8_t*)EEPROM_M500_base->version, (uint8_t*)cs.version, sizeof(cs.version), "cs.version"); //read stored version
     //  SERIAL_ECHOLN("Version: [" << ver << "] Stored version: [" << cs.version << "]");
     if (strncmp(ver,cs.version,3) == 0)  // version number match
     {
 
-        EEPROM_readData(reinterpret_cast<uint8_t*>(EEPROM_M500_base), reinterpret_cast<uint8_t*>(&cs), sizeof(cs), "cs");
+        EEPROM_readData((uint8_t*)EEPROM_M500_base, (uint8_t*)&cs, sizeof(cs), "cs");
 
         
 		if (cs.max_jerk[X_AXIS] > DEFAULT_XJERK) cs.max_jerk[X_AXIS] = DEFAULT_XJERK;
@@ -317,9 +317,9 @@ bool Config_RetrieveSettings()
         Config_ResetDefault();
 		//Return false to inform user that eeprom version was changed and firmware is using default hardcoded settings now.
 		//In case that storing to eeprom was not used yet, do not inform user that hardcoded settings are used.
-		if (eeprom_read_byte(reinterpret_cast<uint8_t*>(&(EEPROM_M500_base->version[0]))) != 0xFF ||
-			eeprom_read_byte(reinterpret_cast<uint8_t*>(&(EEPROM_M500_base->version[1]))) != 0xFF ||
-			eeprom_read_byte(reinterpret_cast<uint8_t*>(&(EEPROM_M500_base->version[2]))) != 0xFF)
+		if (eeprom_read_byte((uint8_t*)(&(EEPROM_M500_base->version[0]))) != 0xFF ||
+			eeprom_read_byte((uint8_t*)(&(EEPROM_M500_base->version[1]))) != 0xFF ||
+			eeprom_read_byte((uint8_t*)(&(EEPROM_M500_base->version[2]))) != 0xFF)
 		{
 			previous_settings_retrieved = false;
 		}

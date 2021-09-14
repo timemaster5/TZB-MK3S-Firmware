@@ -327,6 +327,14 @@ const unsigned int dropsegments=5; //everything with less than this number of st
 // Control heater 0 and heater 1 in parallel.
 //#define HEATERS_PARALLEL
 
+//LCD status clock interval timer to switch between
+// remaining print time
+// and time to change/pause/interaction
+#define CLOCK_INTERVAL_TIME 5
+
+// Control heater 0 and heater 1 in parallel.
+//#define HEATERS_PARALLEL
+
 //===========================================================================
 //=============================Buffers           ============================
 //===========================================================================

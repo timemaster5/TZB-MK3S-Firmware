@@ -2877,13 +2877,14 @@ static void gcode_G28(bool home_x_axis, long home_x_value, bool home_y_axis, lon
           }
                                                 // Let's see if X and Y are homed and probe is inside bed area.
           if(home_z) {
-            if ( (axis_known_position[X_AXIS]) && (axis_known_position[Y_AXIS]) \
 #ifdef BLTOUCH
+            if ( (axis_known_position[X_AXIS]) && (axis_known_position[Y_AXIS]) \
               && (current_position[X_AXIS]+X_PROBE_OFFSET_FROM_EXTRUDER_BLT >= X_MIN_POS) \
               && (current_position[X_AXIS]+X_PROBE_OFFSET_FROM_EXTRUDER_BLT <= X_MAX_POS) \
               && (current_position[Y_AXIS]+Y_PROBE_OFFSET_FROM_EXTRUDER_BLT >= Y_MIN_POS) \
               && (current_position[Y_AXIS]+Y_PROBE_OFFSET_FROM_EXTRUDER_BLT <= Y_MAX_POS)) {
 #else
+            if ( (axis_known_position[X_AXIS]) && (axis_known_position[Y_AXIS]) \
               && (current_position[X_AXIS]+X_PROBE_OFFSET_FROM_EXTRUDER >= X_MIN_POS) \
               && (current_position[X_AXIS]+X_PROBE_OFFSET_FROM_EXTRUDER <= X_MAX_POS) \
               && (current_position[Y_AXIS]+Y_PROBE_OFFSET_FROM_EXTRUDER >= Y_MIN_POS) \
@@ -8921,7 +8922,7 @@ Sigma_Exit:
 	  	if (mmu_enabled) 
 		{
 			st_synchronize();
-			mmu_continue_loading(is_usb_printing  || (lcd_commands_type == LcdCommands::Layer1Cal));
+			mmu_continue_loading();
 			mmu_extruder = tmp_extruder; //filament change is finished
 			mmu_load_to_nozzle();
 		}
@@ -8965,7 +8966,7 @@ Sigma_Exit:
 #endif //defined(MMU_HAS_CUTTER) && defined(MMU_ALWAYS_CUT)
 				  mmu_command(MmuCmd::T0 + tmp_extruder);
 				  manage_response(true, true);
-		          mmu_continue_loading(is_usb_printing  || (lcd_commands_type == LcdCommands::Layer1Cal));
+		          mmu_continue_loading();
 
 				  mmu_extruder = tmp_extruder; //filament change is finished
 

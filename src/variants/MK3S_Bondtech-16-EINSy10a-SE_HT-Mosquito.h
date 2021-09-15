@@ -108,8 +108,9 @@
 #define DEFAULT_MAX_ACCELERATION_SILENT     {960, 960, 200, 5000}    // (mm/sec^2) max acceleration (M201), silent mode
 
 
-#define DEFAULT_ACCELERATION          1250   // X, Y, Z and E max acceleration in mm/s^2 for printing moves (M204S)
-#define DEFAULT_RETRACT_ACCELERATION  1250   // X, Y, Z and E max acceleration in mm/s^2 for retracts (M204T)
+#define DEFAULT_ACCELERATION          1250   // X, Y, Z and E max acceleration in mm/s^2 for printing moves (M204P)
+#define DEFAULT_RETRACT_ACCELERATION  1250   // X, Y, Z and E max acceleration in mm/s^2 for retracts (M204R)
+#define DEFAULT_TRAVEL_ACCELERATION   1250   // X, Y, Z and E max acceleration in mm/s^2 for travels (M204T)
 
 #define MANUAL_FEEDRATE {2700, 2700, 1000, 100}   // set the speeds for manual moves (mm/min)
 
@@ -147,6 +148,15 @@
 #define DEFAULT_SAFETYTIMER_TIME_MINS 30
 #define FARM_DEFAULT_SAFETYTIMER_TIME_ms (45*60*1000ul)
 
+// Offline crash dumper
+#define XFLASH_DUMP     // enable dump functionality (including D20/D21/D22)
+#define MENU_DUMP       // enable "Memory dump" in Settings menu
+#define EMERGENCY_DUMP  // trigger crash on stack corruption and WDR
+
+// Online crash dumper
+//#define EMERGENCY_SERIAL_DUMP   // Request dump via serial on stack corruption and WDR
+//#define MENU_SERIAL_DUMP        // Enable "Memory dump" in Settings menu
+
 // Filament sensor
 #define FILAMENT_SENSOR
 #define IR_SENSOR
@@ -163,11 +173,13 @@
 #define MINTEMP_MINAMBIENT      10
 #define MINTEMP_MINAMBIENT_RAW  1002
 
+#define DEBUG_DCODE2
 #define DEBUG_DCODE3
+#define DEBUG_DCODE6
 
 //#define DEBUG_BUILD
 //#define DEBUG_SEC_LANG   //secondary language debug output at startup
-//#define DEBUG_W25X20CL   //debug external spi flash
+//#define DEBUG_XFLASH   //debug external spi flash
 #ifdef DEBUG_BUILD
 //#define _NO_ASM
 #define DEBUG_DCODES //D codes
@@ -242,6 +254,11 @@
 #define TMC2130_PWM_AUTO_E  1         // PWMCONF
 #define TMC2130_PWM_FREQ_E  2         // PWMCONF
 
+// experimental setting for E-motor cooler operation
+#define TMC2130_PWM_GRAD_Ecool  84        // PWMCONF 730mA @ 375mm/min  970mA phase peak at feedrate 900mm/min
+#define TMC2130_PWM_AMPL_Ecool  43        // PWMCONF 500mA phase peak at feedrate 10 mm/min
+#define TMC2130_PWM_AUTO_Ecool  0         // PWMCONF
+
 #define TMC2130_TOFF_XYZ    3         // CHOPCONF // fchop = 27.778kHz
 #define TMC2130_TOFF_E      3         // CHOPCONF // fchop = 27.778kHz
 //#define TMC2130_TOFF_E      4         // CHOPCONF // fchop = 21.429kHz
@@ -255,6 +272,7 @@
 #define TMC2130_PWM_CLK   (2 * TMC2130_FCLK / TMC2130_PWM_DIV) // PWM frequency (23.4kHz, 35.1kHz, 46.9kHz, 58.5kHz for 12MHz fclk)
 
 #define TMC2130_TPWMTHRS  0         // TPWMTHRS - Sets the switching speed threshold based on TSTEP from stealthChop to spreadCycle mode
+#define TMC2130_TPWMTHRS_E 403      // Switch extruder from StealthChop to SpreadCycle at around 900mm/min
 #define TMC2130_THIGH     0         // THIGH - unused
 
 //#define TMC2130_TCOOLTHRS_X 450       // TCOOLTHRS - coolstep treshold
@@ -273,11 +291,12 @@
 
 //new settings is possible for vsense = 1, running current value > 31 set vsense to zero and shift both currents by 1 bit right (Z axis only)
 #define TMC2130_CURRENTS_H {16, 20, 35, 30}  // default holding currents for all axes
+#define TMC2130_CURRENTS_FARM 36             // E 805 mA peak for ECool/farm mode
 #define TMC2130_CURRENTS_R {16, 20, 35, 30}  // default running currents for all axes
 #define TMC2130_CURRENTS_R_HOME {8, 10, 20, 18}  // homing running currents for all axes
-// #define TMC2130_UNLOAD_CURRENT_R 12			 // lower current for M600 to protect filament sensor - Unused
 
 #define TMC2130_STEALTH_Z
+#define TMC2130_DEDGE_STEPPING
 
 //#define TMC2130_SERVICE_CODES_M910_M918
 
@@ -303,8 +322,9 @@
 #if BED_MINTEMP_DELAY>USHRT_MAX
 #error "Check maximal allowed value @ ShortTimer (see BED_MINTEMP_DELAY definition)"
 #endif
-#define DETECT_SUPERPINDA
-#define PINDA_MINTEMP BED_MINTEMP
+#define SUPERPINDA_SUPPORT
+#define PINDA_MINTEMP 10
+//#define PINDA_TEMP_COMP //Used to enable SuperPINDA toggle menu/function
 #define AMBIENT_MINTEMP -30
 
 // Maxtemps
@@ -508,6 +528,9 @@
 #define PLA_PREHEAT_HOTEND_TEMP 215
 #define PLA_PREHEAT_HPB_TEMP 60
 
+#define PVB_PREHEAT_HOTEND_TEMP 215
+#define PVB_PREHEAT_HPB_TEMP 75
+
 #define ASA_PREHEAT_HOTEND_TEMP 260
 #define ASA_PREHEAT_HPB_TEMP 105
 
@@ -569,6 +592,7 @@
 // 148 is E3D Pt100 with 4k7 pullup and no PT100 Amplifier on a MiniRambo 1.3a
 // 247 is Pt100 with 4k7 pullup and PT100 Amplifier
 // 110 is Pt100 with 1k pullup (non standard)
+// 800 Slice Engineering 450c thermistors
 
 #if defined(E3D_PT100_EXTRUDER_WITH_AMP)
 #define TEMP_SENSOR_0 247
@@ -590,6 +614,7 @@
 #define TEMP_SENSOR_AMBIENT 2000
 
 #define STACK_GUARD_TEST_VALUE 0xA2A2
+#define STACK_GUARD_MARGIN     32
 
 #define MAX_BED_TEMP_CALIBRATION 50
 #define MAX_HOTEND_TEMP_CALIBRATION 50

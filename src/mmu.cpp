@@ -28,7 +28,8 @@
 
 #define CHECK_FINDA ((IS_SD_PRINTING || is_usb_printing) && (mcode_in_progress != 600) && !saved_printing && e_active())
 
-#define ALLOWED_MISSED_STEPS 20
+#define ALLOWED_MISSED_STEPS 12
+
 #define MMU_TODELAY 100
 #define MMU_TIMEOUT 10
 #define MMU_IRSENS_TIMEOUT 3000ul

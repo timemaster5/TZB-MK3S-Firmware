@@ -28,6 +28,7 @@
 
 #define CHECK_FINDA ((IS_SD_PRINTING || is_usb_printing) && (mcode_in_progress != 600) && !saved_printing && e_active())
 
+#define ALLOWED_MISSED_STEPS 20
 #define MMU_TODELAY 100
 #define MMU_TIMEOUT 10
 #define MMU_IRSENS_TIMEOUT 3000ul
@@ -1166,7 +1167,7 @@ static bool can_load()
         st_synchronize();
         if(isEXTLoaded) ++filament_detected_count;
     }
-    if (filament_detected_count > steps - 4) return true;
+    if (filament_detected_count > steps - ALLOWED_MISSED_STEPS) return true;
     else return false;
 }
 
